@@ -14,6 +14,7 @@ import PsychStudentDetail from "./pages/psychology/PsychStudentDetail";
 import CoordinationDashboard from "./pages/coordination/CoordinationDashboard";
 import AlertsPanel from "./pages/coordination/AlertsPanel";
 import InterventionManagement from "./pages/coordination/InterventionManagement";
+import CoordStudentDetail from "./pages/coordination/CoordStudentDetail";
 import DirectoryDashboard from "./pages/directory/DirectoryDashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import NotFound from "./pages/NotFound";
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/psicologia/aluno/:studentId" element={<PsychStudentDetail />} />
             <Route path="/coordenacao" element={<CoordinationDashboard />} />
             <Route path="/coordenacao/alertas" element={<AlertsPanel />} />
+            <Route path="/coordenacao/aluno/:studentId" element={<CoordStudentDetail />} />
             <Route path="/coordenacao/intervencoes" element={<InterventionManagement />} />
             <Route path="/diretoria" element={<DirectoryDashboard />} />
             <Route path="/admin" element={<AdminDashboard />} />
