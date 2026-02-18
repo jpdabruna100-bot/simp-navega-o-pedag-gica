@@ -30,7 +30,7 @@ export interface PsychAssessment {
   id: string;
   date: string;
   tipo: "Inicial" | "Reavaliação" | "Acompanhamento";
-  classificacao: "Suspeita" | "Confirmado" | "Monitoramento";
+  classificacao: string;
   necessitaAcompanhamento: boolean;
   observacao: string;
 }
@@ -121,14 +121,14 @@ function generateStudents(turmaId: string, count: number, startIdx: number): Stu
       id: `pa${id}`,
       date: "2025-02-01",
       tipo: "Inicial",
-      classificacao: risk === "high" ? "Confirmado" : "Suspeita",
+      classificacao: risk === "high" ? "Neurodivergente" : "Suspeita",
       necessitaAcompanhamento: true,
       observacao: "Aluno apresenta dificuldades significativas que requerem acompanhamento especializado.",
     }] : [];
 
     const interventions: Intervention[] = risk !== "low" ? [{
       id: `int${id}`,
-      tipo: "Reforço escolar",
+      tipo: randomFrom(["Nivelamento", "Reforço Pedagógico", "Estratégia Diferenciada", "Conversa com a Família"]),
       objetivo: "Melhorar desempenho em leitura e escrita",
       responsavel: "Profª. Carla Mendes",
       status: randomFrom(["Planejada", "Em andamento", "Concluída"] as const),
@@ -166,6 +166,20 @@ export const initialStudents: Student[] = [
   ...generateStudents("t4", 10, 31),
   ...generateStudents("t5", 10, 41),
 ];
+
+export const INTERVENTION_TYPES = [
+  "Nivelamento",
+  "Reforço Pedagógico",
+  "Estratégia Diferenciada",
+  "Conversa com a Família",
+] as const;
+
+export const PSYCH_CLASSIFICATIONS = [
+  "Típico",
+  "Observação",
+  "Suspeita",
+  "Neurodivergente",
+] as const;
 
 export function getRiskLabel(level: RiskLevel): string {
   switch (level) {

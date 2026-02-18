@@ -99,6 +99,33 @@ export default function CoordStudentDetail() {
           </Card>
         )}
 
+        {/* Registro Psicopedagógico - visível apenas para Coordenação e Psicologia */}
+        {student.psychAssessments.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Brain className="h-4 w-4" /> Registro Psicopedagógico
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {(() => {
+                const lastPsych = student.psychAssessments[student.psychAssessments.length - 1];
+                return (
+                  <>
+                    <p className="text-xs text-muted-foreground mb-2">Última avaliação: {lastPsych.date}</p>
+                    <div><span className="text-muted-foreground">Tipo:</span> <strong>{lastPsych.tipo}</strong></div>
+                    <div><span className="text-muted-foreground">Classificação:</span> <strong>{lastPsych.classificacao}</strong></div>
+                    <div><span className="text-muted-foreground">Acompanhamento:</span> <strong>{lastPsych.necessitaAcompanhamento ? "Sim" : "Não"}</strong></div>
+                    {lastPsych.observacao && (
+                      <div><span className="text-muted-foreground">Observação:</span> <p className="mt-1">{lastPsych.observacao}</p></div>
+                    )}
+                  </>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        )}
+
         {student.interventions.length > 0 && (
           <Card>
             <CardHeader>

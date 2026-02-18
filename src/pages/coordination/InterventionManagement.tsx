@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
+import { INTERVENTION_TYPES } from "@/data/mockData";
 
 export default function InterventionManagement() {
   const { students, setStudents } = useApp();
@@ -20,6 +22,12 @@ export default function InterventionManagement() {
   );
 
   const [showForm, setShowForm] = useState(!!preSelectedStudentId);
+  const [filterTipo, setFilterTipo] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [selectedIntervention, setSelectedIntervention] = useState<(typeof allInterventions)[0] | null>(null);
+  const [editStatus, setEditStatus] = useState("");
+  const [editResultado, setEditResultado] = useState("");
+
   const [form, setForm] = useState({
     studentId: preSelectedStudentId || "",
     tipo: "",
@@ -37,6 +45,10 @@ export default function InterventionManagement() {
   }, [preSelectedStudentId]);
 
   const selectedStudent = students.find((s) => s.id === form.studentId);
+
+  const filtered = allInterventions
+    .filter((i) => filterTipo === "all" || i.tipo === filterTipo)
+    .filter((i) => filterStatus === "all" || i.status === filterStatus);
 
   const handleSave = () => {
     if (!form.studentId || !form.tipo) {
@@ -79,6 +91,32 @@ export default function InterventionManagement() {
     setForm({ studentId: "", tipo: "", objetivo: "", responsavel: "", status: "Planejada", resultado: "" });
   };
 
+  const handleUpdateIntervention = () => {
+    if (!selectedIntervention) return;
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.id === selectedIntervention.studentId
+          ? {
+              ...s,
+              interventions: s.interventions.map((i) =>
+                i.id === selectedIntervention.id
+                  ? { ...i, status: editStatus as any, resultado: editResultado }
+                  : i
+              ),
+            }
+          : s
+      )
+    );
+    toast({ title: "Intervenção atualizada" });
+    setSelectedIntervention(null);
+  };
+
+  const openDetail = (intervention: (typeof allInterventions)[0]) => {
+    setSelectedIntervention(intervention);
+    setEditStatus(intervention.status);
+    setEditResultado(intervention.resultado);
+  };
+
   const statusColor = (s: string) => {
     if (s === "Concluída") return "bg-risk-low/10 text-risk-low border-risk-low/20";
     if (s === "Em andamento") return "bg-risk-medium/10 text-risk-medium border-risk-medium/20";
@@ -115,7 +153,14 @@ export default function InterventionManagement() {
               </div>
               <div className="space-y-1.5">
                 <Label>Tipo de Intervenção *</Label>
-                <Input value={form.tipo} onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))} placeholder="Ex: Reforço escolar" />
+                <Select value={form.tipo} onValueChange={(v) => setForm((f) => ({ ...f, tipo: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o tipo..." /></SelectTrigger>
+                  <SelectContent>
+                    {INTERVENTION_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Objetivo</Label>
@@ -143,9 +188,27 @@ export default function InterventionManagement() {
           </Card>
         )}
 
+        {/* Filtros */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Select value={filterTipo} onValueChange={setFilterTipo}>
+            <SelectTrigger className="w-full sm:w-56"><SelectValue placeholder="Tipo" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os tipos</SelectItem>
+              {INTERVENTION_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os status</SelectItem>
+              {["Planejada", "Em andamento", "Concluída"].map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="space-y-2">
-          {allInterventions.map((intervention) => (
-            <Card key={intervention.id}>
+          {filtered.map((intervention) => (
+            <Card key={intervention.id} className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => openDetail(intervention)}>
               <CardContent className="pt-4">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
@@ -161,8 +224,42 @@ export default function InterventionManagement() {
               </CardContent>
             </Card>
           ))}
-          {allInterventions.length === 0 && <p className="text-center text-muted-foreground py-8">Nenhuma intervenção registrada.</p>}
+          {filtered.length === 0 && <p className="text-center text-muted-foreground py-8">Nenhuma intervenção encontrada.</p>}
         </div>
+
+        {/* Modal Detalhes */}
+        <Dialog open={!!selectedIntervention} onOpenChange={(open) => !open && setSelectedIntervention(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Detalhes da Intervenção</DialogTitle>
+            </DialogHeader>
+            {selectedIntervention && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><span className="text-muted-foreground">Tipo:</span> <strong>{selectedIntervention.tipo}</strong></div>
+                  <div><span className="text-muted-foreground">Aluno:</span> <strong>{selectedIntervention.studentName}</strong></div>
+                  <div><span className="text-muted-foreground">Objetivo:</span> <strong>{selectedIntervention.objetivo}</strong></div>
+                  <div><span className="text-muted-foreground">Responsável:</span> <strong>{selectedIntervention.responsavel}</strong></div>
+                  <div><span className="text-muted-foreground">Data:</span> <strong>{selectedIntervention.date}</strong></div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Status</Label>
+                  <Select value={editStatus} onValueChange={setEditStatus}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["Planejada", "Em andamento", "Concluída"].map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Resultado Observado</Label>
+                  <Textarea value={editResultado} onChange={(e) => setEditResultado(e.target.value)} rows={3} />
+                </div>
+                <Button onClick={handleUpdateIntervention} className="w-full">Salvar Alterações</Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
