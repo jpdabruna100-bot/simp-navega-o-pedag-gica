@@ -1,7 +1,7 @@
 import { useApp } from "@/context/AppContext";
 import { useParams } from "react-router-dom";
 import { useState } from "react";
-import { turmas, PsychAssessment } from "@/data/mockData";
+import { turmas, PsychAssessment, PSYCH_CLASSIFICATIONS } from "@/data/mockData";
 import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,7 +40,7 @@ export default function PsychStudentDetail() {
       id: `pa${Date.now()}`,
       date: new Date().toISOString().split("T")[0],
       tipo: form.tipo as any,
-      classificacao: form.classificacao as any,
+      classificacao: form.classificacao,
       necessitaAcompanhamento: form.necessitaAcompanhamento === "Sim",
       observacao: form.observacao,
     };
@@ -99,7 +99,9 @@ export default function PsychStudentDetail() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {student.timeline.map((event) => (
+              {student.timeline
+                .sort((a, b) => b.date.localeCompare(a.date))
+                .map((event) => (
                 <div key={event.id} className="flex gap-3 items-start">
                   <div className="mt-1.5 w-2 h-2 rounded-full bg-primary flex-shrink-0" />
                   <div>
@@ -119,7 +121,7 @@ export default function PsychStudentDetail() {
             <CardHeader><CardTitle className="text-base">Nova Avaliação Psicopedagógica</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <Label>Tipo</Label>
+                <Label>Tipo *</Label>
                 <Select value={form.tipo} onValueChange={(v) => setForm((f) => ({ ...f, tipo: v }))}>
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent>
@@ -128,16 +130,16 @@ export default function PsychStudentDetail() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Classificação</Label>
+                <Label>Classificação *</Label>
                 <Select value={form.classificacao} onValueChange={(v) => setForm((f) => ({ ...f, classificacao: v }))}>
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent>
-                    {["Suspeita", "Confirmado", "Monitoramento"].map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                    {PSYCH_CLASSIFICATIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Necessita Acompanhamento</Label>
+                <Label>Necessita Acompanhamento *</Label>
                 <Select value={form.necessitaAcompanhamento} onValueChange={(v) => setForm((f) => ({ ...f, necessitaAcompanhamento: v }))}>
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent>

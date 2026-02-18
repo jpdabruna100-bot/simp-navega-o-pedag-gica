@@ -1,16 +1,34 @@
 import { useApp } from "@/context/AppContext";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { turmas } from "@/data/mockData";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { turmas, RiskLevel } from "@/data/mockData";
 import { Brain } from "lucide-react";
 
 export default function PsychologyDashboard() {
   const { students } = useApp();
   const navigate = useNavigate();
+  const [turmaFilter, setTurmaFilter] = useState("all");
+  const [riskFilter, setRiskFilter] = useState<RiskLevel | "all">("all");
+  const [search, setSearch] = useState("");
 
-  const referred = students.filter((s) => s.psychReferral);
+  // Show referred students who still need follow-up
+  // If psych marked "necessitaAcompanhamento = false" on latest assessment, remove from queue
+  const referred = students.filter((s) => {
+    if (!s.psychReferral) return false;
+    const lastPsych = s.psychAssessments[s.psychAssessments.length - 1];
+    if (lastPsych && lastPsych.necessitaAcompanhamento === false) return false;
+    return true;
+  });
+
+  const filtered = referred
+    .filter((s) => turmaFilter === "all" || s.turmaId === turmaFilter)
+    .filter((s) => riskFilter === "all" || s.riskLevel === riskFilter)
+    .filter((s) => search === "" || s.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <Layout>
@@ -20,14 +38,40 @@ export default function PsychologyDashboard() {
           <p className="text-muted-foreground text-sm">Dra. Fernanda Costa</p>
         </div>
 
+        {/* Filtros */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Input
+            placeholder="Buscar por nome..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full sm:w-56"
+          />
+          <Select value={turmaFilter} onValueChange={setTurmaFilter}>
+            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Turma" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as turmas</SelectItem>
+              {turmas.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={riskFilter} onValueChange={(v) => setRiskFilter(v as any)}>
+            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Prioridade" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="high">🔴 Alto risco</SelectItem>
+              <SelectItem value="medium">🟡 Médio risco</SelectItem>
+              <SelectItem value="low">🟢 Baixo risco</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Brain className="h-4 w-4" /> Alunos Encaminhados ({referred.length})
+              <Brain className="h-4 w-4" /> Alunos Encaminhados ({filtered.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {referred.map((student) => {
+            {filtered.map((student) => {
               const turma = turmas.find((t) => t.id === student.turmaId);
               return (
                 <div
@@ -43,6 +87,7 @@ export default function PsychologyDashboard() {
                 </div>
               );
             })}
+            {filtered.length === 0 && <p className="text-center text-muted-foreground py-4">Nenhum aluno na fila.</p>}
           </CardContent>
         </Card>
       </div>
