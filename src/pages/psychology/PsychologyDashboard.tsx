@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
+import { RiskFilterButtons } from "@/components/RiskFilterButtons";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -53,15 +54,7 @@ export default function PsychologyDashboard() {
               {turmas.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={riskFilter} onValueChange={(v) => setRiskFilter(v as any)}>
-            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Prioridade" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              <SelectItem value="high">🔴 Alto risco</SelectItem>
-              <SelectItem value="medium">🟡 Médio risco</SelectItem>
-              <SelectItem value="low">🟢 Baixo risco</SelectItem>
-            </SelectContent>
-          </Select>
+          <RiskFilterButtons value={riskFilter} onChange={setRiskFilter} />
         </div>
 
         <Card>

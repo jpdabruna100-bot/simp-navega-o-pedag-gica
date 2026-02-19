@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { turmas, RiskLevel } from "@/data/mockData";
 import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
+import { RiskFilterButtons } from "@/components/RiskFilterButtons";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Eye, ClipboardList, Brain } from "lucide-react";
@@ -57,14 +58,7 @@ export default function AlertsPanel() {
               {turmas.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={riskFilter} onValueChange={(v) => setRiskFilter(v as any)}>
-            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Prioridade" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              <SelectItem value="high">🔴 Alto risco</SelectItem>
-              <SelectItem value="medium">🟡 Médio risco</SelectItem>
-            </SelectContent>
-          </Select>
+          <RiskFilterButtons value={riskFilter} onChange={setRiskFilter} />
         </div>
 
         <div className="space-y-2">

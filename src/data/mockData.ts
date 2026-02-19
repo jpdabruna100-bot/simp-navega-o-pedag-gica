@@ -24,6 +24,10 @@ export interface Assessment {
   atencao: string;
   comportamento: string;
   dificuldadePercebida: boolean;
+  observacaoProfessor?: string;
+  principalDificuldade?: string;
+  recorrenteOuRecente?: string;
+  estrategiaEmSala?: string;
 }
 
 export interface PsychAssessment {
