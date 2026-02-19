@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
+import { RiskFilterButtons } from "@/components/RiskFilterButtons";
 import { Search } from "lucide-react";
 
 export default function StudentList() {
@@ -33,19 +34,7 @@ export default function StudentList() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Buscar aluno..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
-          <div className="flex gap-2">
-            {(["all", "high", "medium", "low"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  filter === f ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                }`}
-              >
-                {f === "all" ? "Todos" : f === "high" ? "🔴" : f === "medium" ? "🟡" : "🟢"}
-              </button>
-            ))}
-          </div>
+          <RiskFilterButtons value={filter} onChange={setFilter} />
         </div>
 
         <div className="space-y-2">

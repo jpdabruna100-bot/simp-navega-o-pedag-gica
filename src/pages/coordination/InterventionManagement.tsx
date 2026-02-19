@@ -5,6 +5,7 @@ import Layout from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,6 +25,7 @@ export default function InterventionManagement() {
   const [showForm, setShowForm] = useState(!!preSelectedStudentId);
   const [filterTipo, setFilterTipo] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedIntervention, setSelectedIntervention] = useState<(typeof allInterventions)[0] | null>(null);
   const [editStatus, setEditStatus] = useState("");
   const [editResultado, setEditResultado] = useState("");
@@ -48,7 +50,8 @@ export default function InterventionManagement() {
 
   const filtered = allInterventions
     .filter((i) => filterTipo === "all" || i.tipo === filterTipo)
-    .filter((i) => filterStatus === "all" || i.status === filterStatus);
+    .filter((i) => filterStatus === "all" || i.status === filterStatus)
+    .filter((i) => searchQuery === "" || i.studentName.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const handleSave = () => {
     if (!form.studentId || !form.tipo) {
@@ -190,6 +193,10 @@ export default function InterventionManagement() {
 
         {/* Filtros */}
         <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Buscar aluno..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
+          </div>
           <Select value={filterTipo} onValueChange={setFilterTipo}>
             <SelectTrigger className="w-full sm:w-56"><SelectValue placeholder="Tipo" /></SelectTrigger>
             <SelectContent>
