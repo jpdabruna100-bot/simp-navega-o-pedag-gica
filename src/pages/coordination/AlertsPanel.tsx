@@ -16,11 +16,17 @@ export default function AlertsPanel() {
   const [turmaFilter, setTurmaFilter] = useState("all");
   const [riskFilter, setRiskFilter] = useState<RiskLevel | "all">("all");
 
+  // Helper: check if student has dificuldadePercebida in latest assessment
+  const hasDificuldade = (s: typeof students[0]) => {
+    const last = s.assessments[s.assessments.length - 1];
+    return last?.dificuldadePercebida === true;
+  };
+
   const atRisk = students
-    .filter((s) => s.riskLevel !== "low")
+    .filter((s) => s.riskLevel !== "low" || hasDificuldade(s))
     .filter((s) => turmaFilter === "all" || s.turmaId === turmaFilter)
     .filter((s) => riskFilter === "all" || s.riskLevel === riskFilter)
-    .sort((a, b) => (a.riskLevel === "high" ? -1 : 1));
+    .sort((a, b) => (a.riskLevel === "high" ? -1 : b.riskLevel === "high" ? 1 : 0));
 
   const handleReferPsych = (studentId: string) => {
     setStudents((prev) =>
@@ -74,6 +80,11 @@ export default function AlertsPanel() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
+                  {hasDificuldade(student) && (
+                    <span className="text-xs bg-risk-medium/10 text-risk-medium px-2 py-0.5 rounded-full border border-risk-medium/20 font-medium">
+                      ⚠ Dificuldade percebida
+                    </span>
+                  )}
                   {student.psychReferral && (
                     <span className="text-xs bg-accent/10 text-accent px-2 py-0.5 rounded-full">Psico ✓</span>
                   )}
