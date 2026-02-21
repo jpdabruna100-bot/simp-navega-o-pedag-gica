@@ -43,9 +43,12 @@ export default function NewAssessment() {
       return;
     }
 
+    const now = new Date();
     const newAssessment: Assessment = {
       id: `a${Date.now()}`,
-      date: new Date().toISOString().split("T")[0],
+      date: now.toISOString().split("T")[0],
+      anoLetivo: now.getFullYear(),
+      bimestre: Math.ceil((now.getMonth() + 1) / 3), // approximate bimestre
       conceitoGeral: form.conceitoGeral,
       leitura: form.leitura,
       escrita: form.escrita,

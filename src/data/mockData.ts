@@ -53,6 +53,8 @@ export interface Student {
 export interface Assessment {
   id: string;
   date: string;
+  anoLetivo: number;
+  bimestre: number;
   conceitoGeral: string;
   leitura: string;
   escrita: string;
@@ -173,19 +175,64 @@ function generateStudents(turmaId: string, count: number, startIdx: number): Stu
     const mat = `2025${turmaId.replace("t", "")}${String(i + 1).padStart(3, "0")}`;
     const hasPsych = risk === "high" || (risk === "medium" && Math.random() > 0.5);
 
-    const assessments: Assessment[] = [{
-      id: `a${id}`,
-      date: "2025-01-15",
-      conceitoGeral: risk === "high" ? "Insuficiente" : risk === "medium" ? "Regular" : randomFrom(["Bom", "Excelente"]),
-      leitura: risk === "high" ? "Defasada" : risk === "medium" ? "Em desenvolvimento" : "Adequada",
-      escrita: risk === "high" ? "Defasada" : randomFrom(["Adequada", "Em desenvolvimento"]),
-      matematica: risk === "high" ? "Defasada" : risk === "medium" ? "Em desenvolvimento" : "Adequada",
-      atencao: risk === "high" ? "Defasada" : "Adequada",
-      comportamento: risk === "high" ? "Defasado" : "Adequado",
-      dificuldadePercebida: risk !== "low",
-      observacaoProfessor: risk !== "low" ? "Aluno apresenta dificuldades recorrentes em atividades de leitura e escrita." : undefined,
-      principalDificuldade: risk === "high" ? "Leitura e interpretação de textos" : undefined,
-    }];
+    const levelByRisk = (r: RiskLevel, bim: number) => {
+      // Simulate progression over bimesters
+      if (r === "high") {
+        if (bim <= 2) return { l: "Defasada", e: "Defasada", m: "Defasada", a: "Defasada", c: "Defasado", cg: "Insuficiente" };
+        if (bim === 3) return { l: "Em desenvolvimento", e: "Defasada", m: "Em desenvolvimento", a: "Em desenvolvimento", c: "Adequado", cg: "Regular" };
+        return { l: "Em desenvolvimento", e: "Em desenvolvimento", m: "Em desenvolvimento", a: "Adequada", c: "Adequado", cg: "Regular" };
+      }
+      if (r === "medium") {
+        if (bim <= 2) return { l: "Em desenvolvimento", e: randomFrom(["Adequada", "Em desenvolvimento"]), m: "Em desenvolvimento", a: "Adequada", c: "Adequado", cg: "Regular" };
+        return { l: "Adequada", e: "Adequada", m: "Adequada", a: "Adequada", c: "Adequado", cg: "Bom" };
+      }
+      return { l: "Adequada", e: "Adequada", m: "Adequada", a: "Adequada", c: "Adequado", cg: randomFrom(["Bom", "Excelente"]) };
+    };
+
+    const bimestreDates: Record<number, Record<number, string>> = {
+      2024: { 1: "2024-03-20", 2: "2024-06-15", 3: "2024-09-10", 4: "2024-11-25" },
+      2025: { 1: "2025-03-18", 2: "2025-06-12", 3: "2025-09-15", 4: "2025-11-20" },
+    };
+
+    const assessments: Assessment[] = [];
+    // 2024: generate 4 bimesters
+    for (let bim = 1; bim <= 4; bim++) {
+      const lvl = levelByRisk(risk, bim);
+      assessments.push({
+        id: `a${id}-2024-b${bim}`,
+        date: bimestreDates[2024][bim],
+        anoLetivo: 2024,
+        bimestre: bim,
+        conceitoGeral: lvl.cg,
+        leitura: lvl.l,
+        escrita: lvl.e,
+        matematica: lvl.m,
+        atencao: lvl.a,
+        comportamento: lvl.c,
+        dificuldadePercebida: risk !== "low" && bim <= 2,
+        observacaoProfessor: risk !== "low" && bim <= 2 ? "Aluno apresenta dificuldades recorrentes em atividades de leitura e escrita." : undefined,
+        principalDificuldade: risk === "high" && bim <= 2 ? "Leitura e interpretação de textos" : undefined,
+      });
+    }
+    // 2025: generate 2 bimesters (current year in progress)
+    for (let bim = 1; bim <= 2; bim++) {
+      const lvl = levelByRisk(risk, bim);
+      assessments.push({
+        id: `a${id}-2025-b${bim}`,
+        date: bimestreDates[2025][bim],
+        anoLetivo: 2025,
+        bimestre: bim,
+        conceitoGeral: lvl.cg,
+        leitura: lvl.l,
+        escrita: lvl.e,
+        matematica: lvl.m,
+        atencao: lvl.a,
+        comportamento: lvl.c,
+        dificuldadePercebida: risk !== "low",
+        observacaoProfessor: risk !== "low" ? "Aluno apresenta dificuldades recorrentes em atividades de leitura e escrita." : undefined,
+        principalDificuldade: risk === "high" ? "Leitura e interpretação de textos" : undefined,
+      });
+    }
 
     const psychAssessments: PsychAssessment[] = hasPsych ? [{
       id: `pa${id}`,
