@@ -1,5 +1,39 @@
 export type RiskLevel = "low" | "medium" | "high";
 
+export type PsychStatus = "pendente" | "em_acompanhamento" | "avaliado";
+
+export type FamilyContactStatus =
+  | "aguardando"
+  | "tentativa_1"
+  | "tentativa_2"
+  | "tentativa_3"
+  | "contatada"
+  | "sem_retorno";
+
+export interface FamilyContactAttempt {
+  done: boolean;
+  date: string | null;
+}
+
+export interface FamilyContact {
+  id: string;
+  studentId: string;
+  tentativa1: FamilyContactAttempt;
+  tentativa2: FamilyContactAttempt;
+  tentativa3: FamilyContactAttempt;
+  houveRetorno: boolean | null;
+  observacao: string;
+}
+
+export interface StudentDocument {
+  id: string;
+  name: string;
+  type: "pdf" | "image" | "doc";
+  date: string;
+  responsavel: string;
+  url: string; // mock URL
+}
+
 export interface Student {
   id: string;
   name: string;
@@ -12,6 +46,8 @@ export interface Student {
   psychAssessments: PsychAssessment[];
   interventions: Intervention[];
   timeline: TimelineEvent[];
+  familyContact?: FamilyContact;
+  documents: StudentDocument[];
 }
 
 export interface Assessment {
@@ -37,6 +73,8 @@ export interface PsychAssessment {
   classificacao: string;
   necessitaAcompanhamento: boolean;
   observacao: string;
+  possuiPEI?: "Sim" | "Não" | "Em elaboração";
+  responsavel?: string;
 }
 
 export interface Intervention {
@@ -52,7 +90,7 @@ export interface Intervention {
 export interface TimelineEvent {
   id: string;
   date: string;
-  type: "assessment" | "psych" | "intervention" | "referral";
+  type: "assessment" | "psych" | "intervention" | "referral" | "family_contact";
   description: string;
 }
 
@@ -101,6 +139,32 @@ function randomFrom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+export function getPsychStatus(student: Student): PsychStatus {
+  if (!student.psychReferral) return "avaliado";
+  if (student.psychAssessments.length === 0) return "pendente";
+  const last = student.psychAssessments[student.psychAssessments.length - 1];
+  if (last.necessitaAcompanhamento) return "em_acompanhamento";
+  return "avaliado";
+}
+
+export function getPsychStatusLabel(status: PsychStatus): string {
+  switch (status) {
+    case "pendente": return "Avaliação pendente";
+    case "em_acompanhamento": return "Em acompanhamento";
+    case "avaliado": return "Avaliado";
+  }
+}
+
+export function getFamilyContactStatusLabel(contact?: FamilyContact): string {
+  if (!contact) return "Aguardando contato";
+  if (contact.houveRetorno === true) return "Família contatada";
+  if (contact.tentativa3.done && contact.houveRetorno === false) return "Sem retorno após 3 tentativas";
+  if (contact.tentativa3.done) return "3ª tentativa realizada";
+  if (contact.tentativa2.done) return "2ª tentativa realizada";
+  if (contact.tentativa1.done) return "1ª tentativa realizada";
+  return "Aguardando contato";
+}
+
 function generateStudents(turmaId: string, count: number, startIdx: number): Student[] {
   return Array.from({ length: count }, (_, i) => {
     const risk = randomRisk();
@@ -119,6 +183,8 @@ function generateStudents(turmaId: string, count: number, startIdx: number): Stu
       atencao: risk === "high" ? "Defasada" : "Adequada",
       comportamento: risk === "high" ? "Defasado" : "Adequado",
       dificuldadePercebida: risk !== "low",
+      observacaoProfessor: risk !== "low" ? "Aluno apresenta dificuldades recorrentes em atividades de leitura e escrita." : undefined,
+      principalDificuldade: risk === "high" ? "Leitura e interpretação de textos" : undefined,
     }];
 
     const psychAssessments: PsychAssessment[] = hasPsych ? [{
@@ -128,7 +194,19 @@ function generateStudents(turmaId: string, count: number, startIdx: number): Stu
       classificacao: risk === "high" ? "Neurodivergente" : "Suspeita",
       necessitaAcompanhamento: true,
       observacao: "Aluno apresenta dificuldades significativas que requerem acompanhamento especializado.",
+      possuiPEI: risk === "high" ? "Em elaboração" : "Não",
+      responsavel: "Dra. Fernanda Costa",
     }] : [];
+
+    const familyContact: FamilyContact | undefined = hasPsych ? {
+      id: `fc${id}`,
+      studentId: id,
+      tentativa1: { done: Math.random() > 0.3, date: Math.random() > 0.3 ? "2025-02-05" : null },
+      tentativa2: { done: Math.random() > 0.5, date: Math.random() > 0.5 ? "2025-02-10" : null },
+      tentativa3: { done: false, date: null },
+      houveRetorno: Math.random() > 0.7 ? true : null,
+      observacao: "",
+    } : undefined;
 
     const interventions: Intervention[] = risk !== "low" ? [{
       id: `int${id}`,
@@ -144,6 +222,7 @@ function generateStudents(turmaId: string, count: number, startIdx: number): Stu
       { id: `tl1${id}`, date: "2025-01-15", type: "assessment", description: "Avaliação pedagógica realizada" },
       ...(hasPsych ? [{ id: `tl2${id}`, date: "2025-01-18", type: "referral" as const, description: "Encaminhado para avaliação psicopedagógica" }] : []),
       ...(hasPsych ? [{ id: `tl3${id}`, date: "2025-02-01", type: "psych" as const, description: "Avaliação psicopedagógica realizada" }] : []),
+      ...(hasPsych && familyContact?.tentativa1.done ? [{ id: `tl5${id}`, date: "2025-02-05", type: "family_contact" as const, description: "1ª tentativa de contato com a família" }] : []),
       ...(risk !== "low" ? [{ id: `tl4${id}`, date: "2025-01-20", type: "intervention" as const, description: "Intervenção de reforço escolar iniciada" }] : []),
     ];
 
@@ -159,6 +238,10 @@ function generateStudents(turmaId: string, count: number, startIdx: number): Stu
       psychAssessments,
       interventions,
       timeline,
+      familyContact,
+      documents: hasPsych && risk === "high" ? [
+        { id: `doc${id}`, name: "Laudo_Neuropsicologico.pdf", type: "pdf" as const, date: "2025-02-15", responsavel: "Dra. Fernanda Costa", url: "#" },
+      ] : [],
     };
   });
 }
@@ -184,6 +267,8 @@ export const PSYCH_CLASSIFICATIONS = [
   "Suspeita",
   "Neurodivergente",
 ] as const;
+
+export const PEI_OPTIONS = ["Sim", "Não", "Em elaboração"] as const;
 
 export function getRiskLabel(level: RiskLevel): string {
   switch (level) {
