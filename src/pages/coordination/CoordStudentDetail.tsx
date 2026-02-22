@@ -8,31 +8,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Clock, ClipboardList, Brain, TrendingUp, AlertTriangle, FileText } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Line } from "recharts";
 
-const EVOLUTION_FIELDS = ["leitura", "escrita", "matematica"] as const;
-const EVOLUTION_LABELS: Record<string, string> = {
-  leitura: "Leitura", escrita: "Escrita", matematica: "Matemática",
-};
-const EVOLUTION_COLORS: Record<string, string> = {
-  leitura: "hsl(var(--primary))", escrita: "hsl(var(--accent))", matematica: "hsl(210, 70%, 50%)",
-};
+const AREA_LABELS = ["Leitura", "Escrita", "Matemática"] as const;
+const AREA_Y_MAP: Record<string, number> = { Leitura: 3, Escrita: 2, Matemática: 1 };
 
-const CONCEPT_TO_VALUE: Record<string, number> = {
-  "Defasada": 1, "Defasado": 1, "Insuficiente": 1,
-  "Em desenvolvimento": 2, "Regular": 2,
-  "Adequada": 3, "Adequado": 3, "Bom": 3,
-  "Excelente": 4,
-};
-const VALUE_TO_LABEL: Record<number, string> = {
-  1: "Defasada", 2: "Em desenvolvimento", 3: "Adequada", 4: "Excelente",
-};
-
-const RISK_DOT_COLORS: Record<number, string> = {
-  1: "hsl(0, 72%, 51%)",    // red
-  2: "hsl(45, 93%, 47%)",   // yellow
-  3: "hsl(142, 71%, 45%)",  // green
-  4: "hsl(142, 71%, 45%)",  // green
+const CONCEPT_RISK_COLOR: Record<string, string> = {
+  "Defasada": "hsl(0, 72%, 51%)", "Defasado": "hsl(0, 72%, 51%)", "Insuficiente": "hsl(0, 72%, 51%)",
+  "Em desenvolvimento": "hsl(45, 93%, 47%)", "Regular": "hsl(45, 93%, 47%)",
+  "Adequada": "hsl(142, 71%, 45%)", "Adequado": "hsl(142, 71%, 45%)", "Bom": "hsl(142, 71%, 45%)",
+  "Excelente": "hsl(142, 71%, 45%)",
 };
 
 export default function CoordStudentDetail() {
@@ -56,18 +41,29 @@ export default function CoordStudentDetail() {
     [student?.assessments, evolutionYear]
   );
 
-  const evolutionChartData = useMemo(() =>
-    evolutionAssessments.map((a) => ({
-      date: a.date,
-      Leitura: CONCEPT_TO_VALUE[a.leitura] ?? 1,
-      Escrita: CONCEPT_TO_VALUE[a.escrita] ?? 1,
-      Matemática: CONCEPT_TO_VALUE[a.matematica] ?? 1,
-      leituraRaw: a.leitura,
-      escritaRaw: a.escrita,
-      matematicaRaw: a.matematica,
-    })),
-    [evolutionAssessments]
-  );
+  // Build scatter points: one per area per assessment date
+  const scatterData = useMemo(() => {
+    const points: { date: string; dateIdx: number; area: string; areaY: number; concept: string; color: string }[] = [];
+    const dates = evolutionAssessments.map((a) => a.date);
+    evolutionAssessments.forEach((a, idx) => {
+      const fields = [
+        { area: "Leitura", concept: a.leitura },
+        { area: "Escrita", concept: a.escrita },
+        { area: "Matemática", concept: a.matematica },
+      ];
+      fields.forEach(({ area, concept }) => {
+        points.push({
+          date: a.date,
+          dateIdx: idx,
+          area,
+          areaY: AREA_Y_MAP[area],
+          concept,
+          color: CONCEPT_RISK_COLOR[concept] || "hsl(var(--muted-foreground))",
+        });
+      });
+    });
+    return { points, dates };
+  }, [evolutionAssessments]);
 
   if (!student) return <Layout><p>Aluno não encontrado.</p></Layout>;
 
@@ -99,30 +95,15 @@ export default function CoordStudentDetail() {
     return "bg-muted text-muted-foreground";
   };
 
-  // Custom dot renderer for risk colors
-  const renderRiskDot = (field: string) => (props: any) => {
-    const { cx, cy, payload } = props;
-    const value = payload[field === "leitura" ? "Leitura" : field === "escrita" ? "Escrita" : "Matemática"];
-    const color = RISK_DOT_COLORS[value] || RISK_DOT_COLORS[1];
-    return <circle cx={cx} cy={cy} r={5} fill={color} stroke="hsl(var(--background))" strokeWidth={2} />;
-  };
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const EvolutionTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
+    const d = payload[0]?.payload;
+    if (!d) return null;
     return (
-      <div className="rounded-lg border bg-background px-3 py-2 shadow-xl text-xs space-y-1">
-        <p className="font-medium">{label}</p>
-        {payload.map((entry: any) => {
-          const rawKey = entry.dataKey === "Leitura" ? "leituraRaw" : entry.dataKey === "Escrita" ? "escritaRaw" : "matematicaRaw";
-          const concept = entry.payload[rawKey] || VALUE_TO_LABEL[entry.value] || "";
-          return (
-            <div key={entry.dataKey} className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.stroke }} />
-              <span className="text-muted-foreground">{entry.dataKey}:</span>
-              <span className="font-medium">{concept}</span>
-            </div>
-          );
-        })}
+      <div className="rounded-lg border bg-background px-3 py-2 shadow-xl text-xs space-y-0.5">
+        <p className="font-medium">{d.date}</p>
+        <p className="text-muted-foreground">Área: <span className="font-medium text-foreground">{d.area}</span></p>
+        <p className="text-muted-foreground">Conceito: <span className="font-medium text-foreground">{d.concept}</span></p>
       </div>
     );
   };
@@ -230,39 +211,46 @@ export default function CoordStudentDetail() {
             {evolutionAssessments.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">Nenhuma avaliação registrada para {evolutionYear}.</p>
             ) : (
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={evolutionChartData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                    <XAxis
-                      dataKey="date"
-                      className="text-xs"
-                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-                    />
-                    <YAxis
-                      domain={[0.5, 4.5]}
-                      ticks={[1, 2, 3, 4]}
-                      tickFormatter={(v) => VALUE_TO_LABEL[v] || ""}
-                      className="text-xs"
-                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
-                      width={100}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend wrapperStyle={{ fontSize: "12px" }} />
-                    {EVOLUTION_FIELDS.map((field) => (
-                      <Line
-                        key={field}
-                        type="monotone"
-                        dataKey={EVOLUTION_LABELS[field]}
-                        stroke={EVOLUTION_COLORS[field]}
-                        strokeWidth={2}
-                        dot={renderRiskDot(field)}
-                        activeDot={{ r: 7 }}
+              <>
+                <div className="h-[220px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ScatterChart margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                      <XAxis
+                        type="category"
+                        dataKey="date"
+                        allowDuplicatedCategory={false}
+                        tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
                       />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+                      <YAxis
+                        type="number"
+                        dataKey="areaY"
+                        domain={[0.5, 3.5]}
+                        ticks={[1, 2, 3]}
+                        tickFormatter={(v: number) => {
+                          if (v === 3) return "Leitura";
+                          if (v === 2) return "Escrita";
+                          if (v === 1) return "Matemática";
+                          return "";
+                        }}
+                        tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                        width={90}
+                      />
+                      <Tooltip content={<EvolutionTooltip />} />
+                      <Scatter data={scatterData.points} shape="circle">
+                        {scatterData.points.map((p, i) => (
+                          <Cell key={i} fill={p.color} r={8} />
+                        ))}
+                      </Scatter>
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex items-center justify-center gap-4 mt-3 text-xs">
+                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(0, 72%, 51%)" }} /> Defasada</div>
+                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(45, 93%, 47%)" }} /> Em desenvolvimento</div>
+                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(142, 71%, 45%)" }} /> Adequada</div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
