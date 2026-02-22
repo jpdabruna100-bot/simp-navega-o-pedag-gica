@@ -7,71 +7,67 @@ import { RiskBadge } from "@/components/RiskBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Clock, ClipboardList, Brain, TrendingUp, TrendingDown, Minus, AlertTriangle, FileText } from "lucide-react";
+import { Clock, ClipboardList, Brain, TrendingUp, AlertTriangle, FileText } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
-const DIMENSION_FIELDS = ["leitura", "escrita", "matematica", "atencao", "comportamento"] as const;
-const FIELD_LABELS: Record<string, string> = {
+const EVOLUTION_FIELDS = ["leitura", "escrita", "matematica"] as const;
+const EVOLUTION_LABELS: Record<string, string> = {
   leitura: "Leitura", escrita: "Escrita", matematica: "Matemática",
-  atencao: "Atenção", comportamento: "Comportamento",
 };
-const LEVEL_VALUES: Record<string, number> = {
-  "Defasada": 0, "Defasado": 0, "Em desenvolvimento": 1, "Adequada": 2, "Adequado": 2,
+const EVOLUTION_COLORS: Record<string, string> = {
+  leitura: "hsl(var(--primary))", escrita: "hsl(var(--accent))", matematica: "hsl(210, 70%, 50%)",
 };
-const LEVEL_LABELS = ["Defasada", "Em desenv.", "Adequada"];
-const DIMENSION_COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "hsl(210, 70%, 50%)", "hsl(45, 80%, 50%)", "hsl(280, 60%, 50%)"];
+
+const CONCEPT_TO_VALUE: Record<string, number> = {
+  "Defasada": 1, "Defasado": 1, "Insuficiente": 1,
+  "Em desenvolvimento": 2, "Regular": 2,
+  "Adequada": 3, "Adequado": 3, "Bom": 3,
+  "Excelente": 4,
+};
+const VALUE_TO_LABEL: Record<number, string> = {
+  1: "Defasada", 2: "Em desenvolvimento", 3: "Adequada", 4: "Excelente",
+};
+
+const RISK_DOT_COLORS: Record<number, string> = {
+  1: "hsl(0, 72%, 51%)",    // red
+  2: "hsl(45, 93%, 47%)",   // yellow
+  3: "hsl(142, 71%, 45%)",  // green
+  4: "hsl(142, 71%, 45%)",  // green
+};
 
 export default function CoordStudentDetail() {
   const { studentId } = useParams();
   const { students, setStudents } = useApp();
   const navigate = useNavigate();
-  const [selectedYear, setSelectedYear] = useState<number>(2025);
+  const [evolutionYear, setEvolutionYear] = useState<number>(2025);
 
   const student = students.find((s) => s.id === studentId);
 
-  // Available years from assessments
+  // Available years for evolution section
   const availableYears = useMemo(() => {
     if (!student) return [2026, 2025, 2024];
     const years = [...new Set(student.assessments.map((a) => a.anoLetivo))].sort((a, b) => b - a);
-    const all = [...new Set([2026, 2025, 2024, ...years])].sort((a, b) => b - a);
-    return all;
+    return [...new Set([2026, 2025, 2024, ...years])].sort((a, b) => b - a);
   }, [student?.assessments]);
 
-  // Assessments for selected year, sorted by bimestre
-  const yearAssessments = useMemo(
-    () => student ? student.assessments.filter((a) => a.anoLetivo === selectedYear).sort((a, b) => a.bimestre - b.bimestre) : [],
-    [student?.assessments, selectedYear]
+  // Evolution chart data: all assessments for selected year, sorted by date
+  const evolutionAssessments = useMemo(
+    () => student ? student.assessments.filter((a) => a.anoLetivo === evolutionYear).sort((a, b) => a.date.localeCompare(b.date)) : [],
+    [student?.assessments, evolutionYear]
   );
 
-  // Chart data
-  const chartData = useMemo(() =>
-    yearAssessments.map((a) => ({
-      name: `${a.bimestre}º Bim`,
-      Leitura: LEVEL_VALUES[a.leitura] ?? 1,
-      Escrita: LEVEL_VALUES[a.escrita] ?? 1,
-      Matemática: LEVEL_VALUES[a.matematica] ?? 1,
-      Atenção: LEVEL_VALUES[a.atencao] ?? 1,
-      Comportamento: LEVEL_VALUES[a.comportamento] ?? 1,
+  const evolutionChartData = useMemo(() =>
+    evolutionAssessments.map((a) => ({
+      date: a.date,
+      Leitura: CONCEPT_TO_VALUE[a.leitura] ?? 1,
+      Escrita: CONCEPT_TO_VALUE[a.escrita] ?? 1,
+      Matemática: CONCEPT_TO_VALUE[a.matematica] ?? 1,
+      leituraRaw: a.leitura,
+      escritaRaw: a.escrita,
+      matematicaRaw: a.matematica,
     })),
-    [yearAssessments]
+    [evolutionAssessments]
   );
-
-  // Evolution between consecutive assessments
-  const evolutionPairs = useMemo(() => {
-    if (yearAssessments.length < 2) return [];
-    return yearAssessments.slice(1).map((curr, i) => {
-      const prev = yearAssessments[i];
-      return {
-        from: `${prev.bimestre}º→${curr.bimestre}º Bim`,
-        dimensions: DIMENSION_FIELDS.map((f) => {
-          const prevLvl = LEVEL_VALUES[prev[f]] ?? 1;
-          const currLvl = LEVEL_VALUES[curr[f]] ?? 1;
-          const trend = currLvl > prevLvl ? "up" : currLvl < prevLvl ? "down" : "stable";
-          return { field: f, prev: prev[f], curr: curr[f], trend };
-        }),
-      };
-    });
-  }, [yearAssessments]);
 
   if (!student) return <Layout><p>Aluno não encontrado.</p></Layout>;
 
@@ -103,14 +99,33 @@ export default function CoordStudentDetail() {
     return "bg-muted text-muted-foreground";
   };
 
-  const TrendIcon = ({ trend }: { trend: string }) => {
-    if (trend === "up") return <TrendingUp className="h-4 w-4 text-risk-low" />;
-    if (trend === "down") return <TrendingDown className="h-4 w-4 text-risk-high" />;
-    return <Minus className="h-4 w-4 text-muted-foreground" />;
+  // Custom dot renderer for risk colors
+  const renderRiskDot = (field: string) => (props: any) => {
+    const { cx, cy, payload } = props;
+    const value = payload[field === "leitura" ? "Leitura" : field === "escrita" ? "Escrita" : "Matemática"];
+    const color = RISK_DOT_COLORS[value] || RISK_DOT_COLORS[1];
+    return <circle cx={cx} cy={cy} r={5} fill={color} stroke="hsl(var(--background))" strokeWidth={2} />;
   };
 
-  const trendLabel = (t: string) => t === "up" ? "Melhorou" : t === "down" ? "Piorou" : "Estável";
-  const trendColor = (t: string) => t === "up" ? "text-risk-low" : t === "down" ? "text-risk-high" : "text-muted-foreground";
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="rounded-lg border bg-background px-3 py-2 shadow-xl text-xs space-y-1">
+        <p className="font-medium">{label}</p>
+        {payload.map((entry: any) => {
+          const rawKey = entry.dataKey === "Leitura" ? "leituraRaw" : entry.dataKey === "Escrita" ? "escritaRaw" : "matematicaRaw";
+          const concept = entry.payload[rawKey] || VALUE_TO_LABEL[entry.value] || "";
+          return (
+            <div key={entry.dataKey} className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.stroke }} />
+              <span className="text-muted-foreground">{entry.dataKey}:</span>
+              <span className="font-medium">{concept}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <Layout>
@@ -131,21 +146,6 @@ export default function CoordStudentDetail() {
               {student.psychReferral ? "Já encaminhado" : "Encaminhar Psicologia"}
             </Button>
           </div>
-        </div>
-
-        {/* Year Filter */}
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-muted-foreground">Ano letivo:</span>
-          <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
-            <SelectTrigger className="w-[120px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {availableYears.map((y) => (
-                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
 
         {/* Motivo do Alerta */}
@@ -210,117 +210,59 @@ export default function CoordStudentDetail() {
         {/* ===== EVOLUÇÃO DO ALUNO ===== */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" /> Evolução do Aluno — {selectedYear}
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">
-              {yearAssessments.length} avaliação(ões) registrada(s) no ano letivo
-            </p>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" /> Evolução do Aluno
+              </CardTitle>
+              <Select value={String(evolutionYear)} onValueChange={(v) => setEvolutionYear(Number(v))}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableYears.map((y) => (
+                    <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {yearAssessments.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Nenhuma avaliação registrada para {selectedYear}.</p>
+          <CardContent>
+            {evolutionAssessments.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Nenhuma avaliação registrada para {evolutionYear}.</p>
             ) : (
-              <>
-                {/* Gráfico Comparativo */}
-                {yearAssessments.length >= 2 && (
-                  <div>
-                    <p className="text-sm font-medium mb-3">Gráfico comparativo por bimestre</p>
-                    <div className="h-[280px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                          <XAxis dataKey="name" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
-                          <YAxis
-                            domain={[0, 2]}
-                            ticks={[0, 1, 2]}
-                            tickFormatter={(v) => LEVEL_LABELS[v] || ""}
-                            className="text-xs"
-                            tick={{ fill: "hsl(var(--muted-foreground))" }}
-                            width={80}
-                          />
-                          <Tooltip
-                            contentStyle={{ backgroundColor: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }}
-                            formatter={(value: number) => LEVEL_LABELS[value] || value}
-                          />
-                          <Legend wrapperStyle={{ fontSize: "12px" }} />
-                          {["Leitura", "Escrita", "Matemática", "Atenção", "Comportamento"].map((dim, idx) => (
-                            <Line
-                              key={dim}
-                              type="monotone"
-                              dataKey={dim}
-                              stroke={DIMENSION_COLORS[idx]}
-                              strokeWidth={2}
-                              dot={{ r: 4, fill: DIMENSION_COLORS[idx] }}
-                              activeDot={{ r: 6 }}
-                            />
-                          ))}
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                )}
-
-                {/* Linha do tempo de avaliações */}
-                <div>
-                  <p className="text-sm font-medium mb-3">Avaliações por bimestre</p>
-                  <div className="space-y-3">
-                    {yearAssessments.map((a) => (
-                      <div key={a.id} className="p-3 bg-muted/40 rounded-lg space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold">{a.bimestre}º Bimestre</span>
-                          <span className="text-xs text-muted-foreground">{a.date}</span>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                          {DIMENSION_FIELDS.map((f) => (
-                            <div key={f}>
-                              <span className="text-muted-foreground">{FIELD_LABELS[f]}:</span>{" "}
-                              <strong>{a[f]}</strong>
-                            </div>
-                          ))}
-                          <div>
-                            <span className="text-muted-foreground">Conceito:</span>{" "}
-                            <strong>{a.conceitoGeral}</strong>
-                          </div>
-                        </div>
-                        {a.dificuldadePercebida && (
-                          <span className="text-xs bg-risk-high/10 text-risk-high px-2 py-0.5 rounded-full border border-risk-high/20">
-                            ⚠ Dificuldade percebida
-                          </span>
-                        )}
-                      </div>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={evolutionChartData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                    <XAxis
+                      dataKey="date"
+                      className="text-xs"
+                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                    />
+                    <YAxis
+                      domain={[0.5, 4.5]}
+                      ticks={[1, 2, 3, 4]}
+                      tickFormatter={(v) => VALUE_TO_LABEL[v] || ""}
+                      className="text-xs"
+                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                      width={100}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: "12px" }} />
+                    {EVOLUTION_FIELDS.map((field) => (
+                      <Line
+                        key={field}
+                        type="monotone"
+                        dataKey={EVOLUTION_LABELS[field]}
+                        stroke={EVOLUTION_COLORS[field]}
+                        strokeWidth={2}
+                        dot={renderRiskDot(field)}
+                        activeDot={{ r: 7 }}
+                      />
                     ))}
-                  </div>
-                </div>
-
-                {/* Tendências entre bimestres */}
-                {evolutionPairs.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium mb-3">Tendências entre bimestres</p>
-                    {evolutionPairs.map((pair, pi) => (
-                      <div key={pi} className="mb-3">
-                        <p className="text-xs text-muted-foreground mb-1.5">{pair.from}</p>
-                        <div className="space-y-1.5">
-                          {pair.dimensions.map((e) => (
-                            <div key={e.field} className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
-                              <span className="text-xs font-medium w-28">{FIELD_LABELS[e.field]}</span>
-                              <div className="flex items-center gap-1.5 text-xs">
-                                <span className="text-muted-foreground">{e.prev}</span>
-                                <span className="text-muted-foreground">→</span>
-                                <span className="font-medium">{e.curr}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <TrendIcon trend={e.trend} />
-                                <span className={`text-xs ${trendColor(e.trend)}`}>{trendLabel(e.trend)}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </CardContent>
         </Card>
