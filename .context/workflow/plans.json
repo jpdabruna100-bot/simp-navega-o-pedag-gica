@@ -1,0 +1,6 @@
+{
+  "active": [],
+  "completed": [],
+  "templates": ["plans/templates/feature-plan-template.md", "plans/templates/prevc-template.md"],
+  "index": "plans/README.md"
+}

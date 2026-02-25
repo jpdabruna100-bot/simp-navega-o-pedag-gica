@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0",
+  "project": "SIMP",
+  "stack": {
+    "primaryLanguage": "typescript",
+    "languages": ["typescript", "javascript"],
+    "frameworks": ["react"],
+    "buildTools": ["vite"],
+    "testFrameworks": ["vitest"],
+    "packageManager": "npm"
+  },
+  "structure": {
+    "topDirectories": [
+      "src",
+      "src/pages",
+      "src/components",
+      "src/context",
+      "src/integrations/supabase",
+      ".context/docs",
+      ".context/agents",
+      ".context/skills",
+      "plans"
+    ],
+    "entryPoints": ["src/App.tsx", "src/main.tsx", "src/integrations/supabase/client.ts"]
+  }
+}

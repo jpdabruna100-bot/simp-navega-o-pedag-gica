@@ -1,0 +1,16 @@
+project:
+  name: SIMP
+  scale: SMALL
+  current_phase: P
+
+phases:
+  P:
+    status: in_progress
+  R:
+    status: pending
+  E:
+    status: pending
+  V:
+    status: pending
+  C:
+    status: pending

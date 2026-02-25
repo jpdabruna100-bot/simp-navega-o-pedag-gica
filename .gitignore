@@ -1,3 +1,38 @@
+# -----------------------------------------------------------------------------
+# SIMP — .gitignore para commits seguros e inteligentes no GitHub
+# Não commitar: secrets, dependências, builds, caches, arquivos de máquina.
+# -----------------------------------------------------------------------------
+
+# Secrets e ambiente (NUNCA commitar)
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+# Manter .env.example no repositório como template (não listar aqui)
+
+# Dependências
+node_modules
+
+# Build e artefatos
+dist
+dist-ssr
+*.local
+.vercel
+.netlify
+
+# Cache e temporários
+.vite
+.cache
+.parcel-cache
+*.tsbuildinfo
+.turbo
+
+# Testes
+coverage
+.nyc_output
+
 # Logs
 logs
 *.log
@@ -7,16 +42,15 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
+# IDE e editores (manter .vscode/extensions.json para o time)
 .vscode/*
 !.vscode/extensions.json
 .idea
+.cursor/projects
+
+# Sistema operacional
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
