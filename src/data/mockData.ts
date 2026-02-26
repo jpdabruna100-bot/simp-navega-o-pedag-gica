@@ -234,14 +234,18 @@ function generateStudents(turmaId: string, count: number, startIdx: number): Stu
       });
     }
 
+    // Alguns encaminhados já foram avaliados e não necessitam acompanhamento (status Concluído)
+    const concluidoSemAcompanhamento = hasPsych && (startIdx + i) % 4 === 0;
     const psychAssessments: PsychAssessment[] = hasPsych ? [{
       id: `pa${id}`,
       date: "2025-02-01",
       tipo: "Inicial",
-      classificacao: risk === "high" ? "Neurodivergente" : "Suspeita",
-      necessitaAcompanhamento: true,
-      observacao: "Aluno apresenta dificuldades significativas que requerem acompanhamento especializado.",
-      possuiPEI: risk === "high" ? "Em elaboração" : "Não",
+      classificacao: concluidoSemAcompanhamento ? "Típico" : (risk === "high" ? "Neurodivergente" : "Suspeita"),
+      necessitaAcompanhamento: !concluidoSemAcompanhamento,
+      observacao: concluidoSemAcompanhamento
+        ? "Avaliação inicial concluída. Aluno dentro do esperado para a idade, sem necessidade de acompanhamento."
+        : "Aluno apresenta dificuldades significativas que requerem acompanhamento especializado.",
+      possuiPEI: risk === "high" && !concluidoSemAcompanhamento ? "Em elaboração" : "Não",
       responsavel: "Dra. Fernanda Costa",
     }] : [];
 

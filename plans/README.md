@@ -18,6 +18,7 @@ Esta pasta concentra **planos** e **templates** para implementar novas features 
 | [planning-pdca.md](planning-pdca.md) | Estrutura Plan / Do / Check / Act para reorganizações ou migrações. |
 | [2026-02-25-refactor-context-agents-claude-para-simp.md](2026-02-25-refactor-context-agents-claude-para-simp.md) | Plano PREVC para refatorar .context, AGENTS.md e CLAUDE.md ao projeto SIMP (em revisão). |
 | [2026-02-25-migracao-simp-para-starter-kit.md](2026-02-25-migracao-simp-para-starter-kit.md) | Plano de migração do frontend e domínio SIMP para o starter-kit-v2 (Next.js, Clerk, Prisma) — execução futura. |
+| [2026-02-25-migracao-simp-para-simp-v2-patch-minimo.md](2026-02-25-migracao-simp-para-simp-v2-patch-minimo.md) | Migração SIMP → SIMP-V2 com patch mínimo: adicionar páginas/rotas, layout SIMP, dados em mock; todas as telas funcionando. |
 
 ## Convenção de nomes para planos
 

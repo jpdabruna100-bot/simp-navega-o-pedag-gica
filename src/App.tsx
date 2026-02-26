@@ -18,6 +18,8 @@ import CoordStudentDetail from "./pages/coordination/CoordStudentDetail";
 import DirectoryDashboard from "./pages/directory/DirectoryDashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import NotFound from "./pages/NotFound";
+import ExperimentalAssessment from "./pages/professor/ExperimentalAssessment";
+import CriticalOccurrenceDetail from "./pages/coordination/CriticalOccurrenceDetail";
 
 const queryClient = new QueryClient();
 
@@ -34,12 +36,14 @@ const App = () => (
             <Route path="/professor/turma/:turmaId" element={<StudentList />} />
             <Route path="/professor/aluno/:studentId" element={<StudentDetail />} />
             <Route path="/professor/aluno/:studentId/avaliacao" element={<NewAssessment />} />
+            <Route path="/professor/aluno/:studentId/avaliacao-teste" element={<ExperimentalAssessment />} />
             <Route path="/psicologia" element={<PsychologyDashboard />} />
             <Route path="/psicologia/aluno/:studentId" element={<PsychStudentDetail />} />
             <Route path="/coordenacao" element={<CoordinationDashboard />} />
             <Route path="/coordenacao/alertas" element={<AlertsPanel />} />
             <Route path="/coordenacao/aluno/:studentId" element={<CoordStudentDetail />} />
             <Route path="/coordenacao/intervencoes" element={<InterventionManagement />} />
+            <Route path="/coordenacao/ocorrencias/:id" element={<CriticalOccurrenceDetail />} />
             <Route path="/diretoria" element={<DirectoryDashboard />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="*" element={<NotFound />} />

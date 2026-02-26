@@ -21,12 +21,7 @@ export default function PsychologyDashboard() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
 
-  const referred = students.filter((s) => {
-    if (!s.psychReferral) return false;
-    const lastPsych = s.psychAssessments[s.psychAssessments.length - 1];
-    if (lastPsych && lastPsych.necessitaAcompanhamento === false) return false;
-    return true;
-  });
+  const referred = students.filter((s) => s.psychReferral);
 
   const filtered = referred
     .filter((s) => turmaFilter === "all" || s.turmaId === turmaFilter)
