@@ -42,6 +42,7 @@ export interface Student {
   riskLevel: RiskLevel;
   lastAssessmentDate: string;
   psychReferral: boolean;
+  psychReferralReason?: string;
   assessments: Assessment[];
   psychAssessments: PsychAssessment[];
   interventions: Intervention[];
@@ -66,6 +67,13 @@ export interface Assessment {
   principalDificuldade?: string;
   recorrenteOuRecente?: string;
   estrategiaEmSala?: string;
+
+  // Novos campos da Avaliação Guiada (Teste)
+  sintomasIdentificados?: string[];
+  acoesIniciais?: string[];
+  outrosSintomas?: string;
+  outraAcao?: string;
+  frequenciaPorArea?: Record<string, string>;
 }
 
 export interface PsychAssessment {
@@ -79,14 +87,29 @@ export interface PsychAssessment {
   responsavel?: string;
 }
 
+export interface InterventionUpdate {
+  id: string;
+  date: string;
+  time: string;
+  author: string;
+  content: string;
+}
+
 export interface Intervention {
   id: string;
-  tipo: string;
+  date: string;
+  // A categoria de ação escolhida
+  actionCategory: "Ações Internas" | "Acionar Família" | "Acionar Psicologia" | "Acionar Psicopedagogia";
+  // A ferramenta específica escolhida dentro do cardápio
+  actionTool: string;
   objetivo: string;
   responsavel: string;
-  status: "Planejada" | "Em andamento" | "Concluída";
-  resultado: string;
-  date: string;
+  // Status do Kanban
+  status: "Aguardando" | "Em_Acompanhamento" | "Concluído";
+  // Dados extras para o Kanban
+  pendingUntil?: string; // Prazo estipulado para a ação resolver
+  resolutionAta?: string; // Preenchimento obrigatório para fechar o ciclo
+  updates?: InterventionUpdate[]; // Respostas diárias e andamento livre
 }
 
 export interface TimelineEvent {
@@ -169,11 +192,17 @@ export function getFamilyContactStatusLabel(contact?: FamilyContact): string {
 
 function generateStudents(turmaId: string, count: number, startIdx: number): Student[] {
   return Array.from({ length: count }, (_, i) => {
-    const risk = randomRisk();
+    let risk = randomRisk();
     const id = `s${startIdx + i}`;
-    const name = `${randomFrom(firstNames)} ${randomFrom(lastNames)}`;
+    let name = `${randomFrom(firstNames)} ${randomFrom(lastNames)}`;
     const mat = `2025${turmaId.replace("t", "")}${String(i + 1).padStart(3, "0")}`;
-    const hasPsych = risk === "high" || (risk === "medium" && Math.random() > 0.5);
+    let hasPsych = risk === "high" || (risk === "medium" && Math.random() > 0.5);
+
+    if (id === "s1") {
+      name = "Laura Barbosa";
+      risk = "high";
+      hasPsych = true;
+    }
 
     const levelByRisk = (r: RiskLevel, bim: number) => {
       // Simulate progression over bimesters
@@ -194,6 +223,26 @@ function generateStudents(turmaId: string, count: number, startIdx: number): Stu
       2025: { 1: "2025-03-18", 2: "2025-06-12", 3: "2025-09-15", 4: "2025-11-20" },
     };
 
+    const mockSintomas = risk === "high"
+      ? ["Dificuldade em decodificar/ler isoladamente", "Troca, omissão ou acréscimo de letras (sons semelhantes)", "Dificuldade em armar e efetuar contas"]
+      : risk === "medium"
+        ? ["Dificuldade em manter atenção nas aulas", "Lentidão na aprendizagem da leitura"]
+        : [];
+
+    const mockAcoes = risk === "high"
+      ? ["Fiz sondagens diagnósticas pontuais de leitura", "Adaptei tamanho das atividades e espaçamentos"]
+      : risk === "medium"
+        ? ["Mudei de lugar (foco na lousa / longe de distrações)"]
+        : [];
+
+    const mockFrequenciaPorArea = risk !== "low" ? {
+      "Leitura": randomFrom(["Diariamente", "Semanalmente", "Mensalmente"]),
+      "Escrita": randomFrom(["Diariamente", "Semanalmente", "Mensalmente"]),
+      "Matemática": randomFrom(["Diariamente", "Semanalmente", "Mensalmente"]),
+      "Atenção": randomFrom(["Diariamente", "Semanalmente", "Mensalmente"]),
+      "Comportamento": randomFrom(["Diariamente", "Semanalmente", "Mensalmente"]),
+    } : undefined;
+
     const assessments: Assessment[] = [];
     // 2024: generate 4 bimesters
     for (let bim = 1; bim <= 4; bim++) {
@@ -211,7 +260,9 @@ function generateStudents(turmaId: string, count: number, startIdx: number): Stu
         comportamento: lvl.c,
         dificuldadePercebida: risk !== "low" && bim <= 2,
         observacaoProfessor: risk !== "low" && bim <= 2 ? "Aluno apresenta dificuldades recorrentes em atividades de leitura e escrita." : undefined,
-        principalDificuldade: risk === "high" && bim <= 2 ? "Leitura e interpretação de textos" : undefined,
+        sintomasIdentificados: risk !== "low" ? mockSintomas : undefined,
+        acoesIniciais: risk !== "low" ? mockAcoes : undefined,
+        frequenciaPorArea: risk !== "low" ? mockFrequenciaPorArea : undefined,
       });
     }
     // 2025: generate 2 bimesters (current year in progress)
@@ -230,7 +281,8 @@ function generateStudents(turmaId: string, count: number, startIdx: number): Stu
         comportamento: lvl.c,
         dificuldadePercebida: risk !== "low",
         observacaoProfessor: risk !== "low" ? "Aluno apresenta dificuldades recorrentes em atividades de leitura e escrita." : undefined,
-        principalDificuldade: risk === "high" ? "Leitura e interpretação de textos" : undefined,
+        sintomasIdentificados: risk !== "low" ? mockSintomas : undefined,
+        acoesIniciais: risk !== "low" ? mockAcoes : undefined,
       });
     }
 
@@ -261,12 +313,13 @@ function generateStudents(turmaId: string, count: number, startIdx: number): Stu
 
     const interventions: Intervention[] = risk !== "low" ? [{
       id: `int${id}`,
-      tipo: randomFrom(["Nivelamento", "Reforço Pedagógico", "Estratégia Diferenciada", "Conversa com a Família"]),
-      objetivo: "Melhorar desempenho em leitura e escrita",
-      responsavel: "Profª. Carla Mendes",
-      status: randomFrom(["Planejada", "Em andamento", "Concluída"] as const),
-      resultado: "Em observação",
       date: "2025-01-20",
+      actionCategory: randomFrom(["Ações Internas", "Acionar Família", "Acionar Psicologia"] as const),
+      actionTool: randomFrom(["Alinhamento Interno", "Comunicado Oficial", "Reunião Presencial", "Avaliação Urgente"]),
+      objetivo: "Melhorar desempenho acadêmico e comportamental",
+      responsavel: "Coord. Marcos Lima",
+      status: randomFrom(["Aguardando", "Concluído"] as const),
+      pendingUntil: Math.random() > 0.5 ? "2025-03-10" : undefined,
     }] : [];
 
     const timeline: TimelineEvent[] = [
@@ -305,11 +358,177 @@ export const initialStudents: Student[] = [
   ...generateStudents("t5", 10, 41),
 ];
 
+// Alunos com plano já aplicado (determinístico para testar "Ver plano estratégico")
+const s7 = initialStudents.find((s) => s.id === "s7");
+if (s7) {
+  s7.riskLevel = "high";
+  s7.interventions = [{
+    id: "ints7",
+    date: "2025-01-20",
+    actionCategory: "Acionar Família",
+    actionTool: "Registrar Envio (WhatsApp)",
+    objetivo: "Reforço na leitura em casa e acompanhamento das atividades. Reunião com responsáveis agendada.",
+    responsavel: "Coord. Marcos Lima",
+    status: "Em_Acompanhamento",
+    pendingUntil: "2024-12-15", // Intencionalmente atrasado
+    updates: [
+      {
+        id: "up1",
+        date: "2025-01-20",
+        time: "14:15",
+        author: "Coord. Marcos Lima",
+        content: "Tratativa iniciada. Mensagem programada no Bling."
+      },
+      {
+        id: "up2",
+        date: "2025-01-22",
+        time: "09:30",
+        author: "Coord. Marcos Lima",
+        content: "Mãe visualizou a mensagem mas não respondeu. Realizei uma tentativa de ligação que caiu na caixa postal."
+      }
+    ]
+  }];
+}
+
+const s6 = initialStudents.find((s) => s.id === "s6");
+if (s6) {
+  s6.riskLevel = "medium";
+  s6.interventions = [{
+    id: "ints6",
+    date: "2025-02-10",
+    actionCategory: "Acionar Psicopedagogia",
+    actionTool: "Avaliação Cognitiva Básica",
+    objetivo: "Investigar possível dislexia ou déficit de atenção relatado nas aulas de Matemática.",
+    responsavel: "Coord. Marcos Lima",
+    status: "Em_Acompanhamento",
+    pendingUntil: "2025-05-20", // Pendente mas no prazo
+    updates: [
+      {
+        id: "up-s6-1",
+        date: "2025-02-10",
+        time: "10:00",
+        author: "Coord. Marcos Lima",
+        content: "Tratativa iniciada. Encaminhando para avaliação psicopedagógica externa."
+      }
+    ]
+  }];
+}
+
+const s8 = initialStudents.find((s) => s.id === "s8");
+if (s8) {
+  s8.riskLevel = "medium";
+  s8.interventions = [{
+    id: "ints8",
+    date: "2025-01-10",
+    actionCategory: "Ações Internas",
+    actionTool: "Reforço no Contraturno",
+    objetivo: "Melhorar desempenho acadêmico e comportamental.",
+    responsavel: "Coord. Marcos Lima",
+    status: "Concluído",
+    pendingUntil: "2025-02-28",
+    resolutionAta: "Ciclo encerrado em 2025-02-28. Aluno apresentou evolução satisfatória no reforço. Recomenda-se acompanhamento contínuo nas próximas avaliações.",
+  }];
+}
+
+// OBRIGATÓRIO: Forçar o caso do aluno s28 (Pedro Santos) para demonstrar a evolução de 6 pontos de avaliação
+const pSantos = initialStudents.find(s => s.id === "s28");
+if (pSantos) {
+  pSantos.name = "Pedro Santos";
+  pSantos.riskLevel = "medium";
+  pSantos.psychReferral = true;
+  pSantos.psychReferralReason = "Professor observou agitação atípica seguida de choro constante em Matemática. Dificuldades em pareamento de números.";
+  pSantos.assessments = [
+    {
+      id: "a-p1",
+      date: "2025-02-15",
+      anoLetivo: 2025,
+      bimestre: 1,
+      conceitoGeral: "Insuficiente",
+      leitura: "Defasada",
+      escrita: "Defasada",
+      matematica: "Defasada",
+      atencao: "Defasada",
+      comportamento: "Defasado",
+      dificuldadePercebida: true,
+      observacaoProfessor: "Muitas dificuldades na adaptação inicial.",
+      sintomasIdentificados: ["Dificuldade de concentração", "Choro sem motivo aparente"],
+    },
+    {
+      id: "a-p2",
+      date: "2025-04-10",
+      anoLetivo: 2025,
+      bimestre: 1,
+      conceitoGeral: "Insuficiente",
+      leitura: "Em desenvolvimento",
+      escrita: "Defasada",
+      matematica: "Defasada",
+      atencao: "Defasada",
+      comportamento: "Regular",
+      dificuldadePercebida: true,
+      acoesIniciais: ["Reforço no contraturno aplicado"],
+    },
+    {
+      id: "a-p3",
+      date: "2025-06-20",
+      anoLetivo: 2025,
+      bimestre: 2,
+      conceitoGeral: "Regular",
+      leitura: "Em desenvolvimento",
+      escrita: "Em desenvolvimento",
+      matematica: "Defasada",
+      atencao: "Em desenvolvimento",
+      comportamento: "Regular",
+      dificuldadePercebida: true,
+    },
+    {
+      id: "a-p4",
+      date: "2025-08-15",
+      anoLetivo: 2025,
+      bimestre: 3,
+      conceitoGeral: "Regular",
+      leitura: "Adequada",
+      escrita: "Em desenvolvimento",
+      matematica: "Em desenvolvimento",
+      atencao: "Adequada",
+      comportamento: "Adequado",
+      dificuldadePercebida: false,
+    },
+    {
+      id: "a-p5",
+      date: "2025-10-05",
+      anoLetivo: 2025,
+      bimestre: 4,
+      conceitoGeral: "Bom",
+      leitura: "Adequada",
+      escrita: "Adequada",
+      matematica: "Em desenvolvimento",
+      atencao: "Adequada",
+      comportamento: "Adequado",
+      dificuldadePercebida: false,
+    },
+    {
+      id: "a-p6",
+      date: "2025-11-28",
+      anoLetivo: 2025,
+      bimestre: 4,
+      conceitoGeral: "Excelente",
+      leitura: "Adequada",
+      escrita: "Adequada",
+      matematica: "Adequada",
+      atencao: "Adequada",
+      comportamento: "Adequado",
+      dificuldadePercebida: false,
+      observacaoProfessor: "Incrível recuperação ao longo do ano. Respondeu super bem ao tratamento psicopedagógico em Matemática.",
+    }
+  ];
+}
+
 export const INTERVENTION_TYPES = [
-  "Nivelamento",
-  "Reforço Pedagógico",
-  "Estratégia Diferenciada",
-  "Conversa com a Família",
+  "Alinhamento Interno (Coordenador + Professor)",
+  "Comunicação à Família (Aviso formal)",
+  "Orientação de Reforço Externo",
+  "Acompanhamento Pedagógico (Interno)",
+  "Adaptação de Material/Avaliação",
 ] as const;
 
 export const PSYCH_CLASSIFICATIONS = [

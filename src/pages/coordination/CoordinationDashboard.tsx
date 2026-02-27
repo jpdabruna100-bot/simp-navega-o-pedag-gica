@@ -4,10 +4,11 @@ import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Activity, Brain, Users, ArrowRight, ShieldAlert } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { AlertTriangle, Activity, Brain, Users, ArrowRight, ShieldAlert, TrendingUp } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList, Legend } from "recharts";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { useState, useEffect } from "react";
 
 export default function CoordinationDashboard() {
@@ -36,8 +37,9 @@ export default function CoordinationDashboard() {
   const highRisk = students.filter((s) => s.riskLevel === "high").length;
   const medRisk = students.filter((s) => s.riskLevel === "medium").length;
   const lowRisk = students.filter((s) => s.riskLevel === "low").length;
-  const activeInterventions = students.flatMap((s) => s.interventions).filter((i) => i.status === "Em andamento").length;
-  const pendingPsych = students.filter((s) => s.psychReferral && s.psychAssessments.length === 0).length;
+  const activeInterventions = students.flatMap((s) => s.interventions).filter((i) => i.status === "Em_Acompanhamento").length;
+  const overdueInterventions = 3; // Mock para demonstrar acompanhamentos atrasados/vencidos
+  const pendingPsych = students.flatMap((s) => s.interventions).filter((i) => i.actionCategory === "Acionar Psicologia" && i.status !== "Concluído").length;
 
   const areaData = [
     { area: "Leitura", insuficientes: students.filter((s) => s.assessments.some((a) => a.leitura === "Defasada")).length },
@@ -47,15 +49,37 @@ export default function CoordinationDashboard() {
   ];
 
   const pieData = [
-    { name: "Baixo risco", value: lowRisk, color: "hsl(142, 71%, 45%)" },
-    { name: "Médio risco", value: medRisk, color: "hsl(45, 93%, 47%)" },
-    { name: "Alto risco", value: highRisk, color: "hsl(0, 72%, 51%)" },
+    { name: "Baixo risco", value: lowRisk, color: "#10b981" }, // emerald-500
+    { name: "Médio risco", value: medRisk, color: "#f59e0b" }, // amber-500
+    { name: "Alto risco", value: highRisk, color: "#ef4444" }, // red-500
   ];
 
   return (
     <Layout>
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Dashboard Estratégico</h1>
+        <div className="flex flex-col mb-2">
+          <h1 className="text-3xl font-bold text-[#1e3a8a]">Dashboard Estratégico</h1>
+          <p className="text-muted-foreground mt-1">Gestão Analítica de Casos e Acompanhamentos Pedagógicos</p>
+        </div>
+
+        {/* Action / Filter Bar */}
+        <div className="flex flex-col sm:flex-row items-end gap-4 mb-2">
+          <div className="space-y-1.5 w-full sm:w-auto flex-1 md:flex-none">
+            <Label className="text-xs text-muted-foreground font-medium">Filtrar por Turma</Label>
+            <div className="w-full md:w-[250px] border rounded-md px-3 py-2 text-sm bg-white flex justify-between items-center text-slate-700 shadow-sm">
+              Todas as turmas <span className="text-muted-foreground text-xs">⌄</span>
+            </div>
+          </div>
+          <div className="space-y-1.5 w-full sm:w-auto flex-1 md:flex-none">
+            <Label className="text-xs text-muted-foreground font-medium">Filtrar por Periodo</Label>
+            <div className="w-full md:w-[250px] border rounded-md px-3 py-2 text-sm bg-white flex justify-between items-center text-slate-700 shadow-sm">
+              Todos os períodos <span className="text-muted-foreground text-xs">⌄</span>
+            </div>
+          </div>
+          <div className="ml-auto w-full sm:w-auto text-sm text-slate-500 font-medium py-2">
+            Total: {students.length} estudantes
+          </div>
+        </div>
 
         <Dialog open={showCriticalAlert} onOpenChange={setShowCriticalAlert}>
           <DialogContent className="sm:max-w-[550px] border-red-500 shadow-red-900/20 shadow-2xl">
@@ -119,82 +143,247 @@ export default function CoordinationDashboard() {
           </DialogContent>
         </Dialog>
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Card className="border-l-4 border-l-risk-high">
-            <CardContent className="pt-4 flex items-center gap-3">
-              <AlertTriangle className="h-8 w-8 text-risk-high" />
-              <div>
-                <p className="text-2xl font-bold">{highRisk}</p>
-                <p className="text-xs text-muted-foreground">Prioridade Alta</p>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+
+          {/* Card 0: Alerta Urgente (Gestão de Risco) */}
+          <Card
+            className="border-l-[6px] border-l-rose-600 cursor-pointer shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 group bg-gradient-to-br from-rose-50 to-rose-100/50"
+            onClick={() => navigate('/coordenacao/ocorrencias/OC-1')}
+          >
+            <CardContent className="p-5 flex flex-col h-full justify-between gap-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-rose-900 font-bold text-sm">Alerta Urgente Ativo</h3>
+                  <div className="relative inline-block mt-2">
+                    <span className="animate-ping absolute top-1 -left-1 h-8 w-8 rounded-full bg-rose-400 opacity-40"></span>
+                    <p className="text-5xl font-black text-rose-700 relative">1</p>
+                  </div>
+                </div>
+                <div className="bg-rose-200/50 p-2 rounded-lg">
+                  <ShieldAlert className="h-8 w-8 text-rose-600" />
+                </div>
+              </div>
+
+              <div className="space-y-1 mt-2">
+                <p className="text-xs font-semibold text-rose-800">Dossiê #OC-1</p>
+                <p className="text-rose-600 font-medium text-xs leading-tight">Gestão de Risco Iminente requer ação imediata da coordenação.</p>
+              </div>
+
+              <div className="mt-4 pt-4 pb-1 border-t border-rose-200/60">
+                <div className="flex items-center text-rose-700 text-xs font-bold gap-1 group-hover:gap-2 transition-all">
+                  Assumir Caso Imediatamente <ArrowRight className="h-3 w-3" />
+                </div>
               </div>
             </CardContent>
           </Card>
-          <Card className="border-l-4 border-l-accent">
-            <CardContent className="pt-4 flex items-center gap-3">
-              <Activity className="h-8 w-8 text-accent" />
-              <div>
-                <p className="text-2xl font-bold">{activeInterventions}</p>
-                <p className="text-xs text-muted-foreground">Intervenções Ativas</p>
+
+          {/* Card 1: Prioridade Alta */}
+          <Card
+            className="border-l-[6px] border-l-red-500 cursor-pointer shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 group bg-gradient-to-br from-white to-red-50/20"
+            onClick={() => navigate('/coordenacao/intervencoes?filtro=urgentes')}
+          >
+            <CardContent className="p-5 flex flex-col h-full justify-between gap-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-slate-600 font-medium text-sm">Prioridade Alta</h3>
+                  <p className="text-5xl font-bold text-red-600 mt-2">{highRisk}</p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-red-400 opacity-80" />
+              </div>
+
+              <div className="space-y-2 mt-4">
+                <div className="flex justify-between text-xs font-semibold text-slate-500">
+                  <span>Proporção do total</span>
+                  <span className="text-red-600">{students.length ? Math.round((highRisk / students.length) * 100) : 0}%</span>
+                </div>
+                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                  <div className="bg-red-600 h-full transition-all duration-1000" style={{ width: `${students.length ? Math.round((highRisk / students.length) * 100) : 0}%` }}></div>
+                </div>
+              </div>
+
+              <div
+                className="mt-2 bg-red-600 hover:bg-red-700 transition-colors text-white py-2 rounded-md font-bold text-sm text-center shadow-md cursor-pointer relative z-10 w-full animate-pulse flex justify-center items-center gap-2"
+                onClick={(e) => { e.stopPropagation(); navigate('/coordenacao/intervencoes?filtro=urgentes'); }}
+              >
+                Triar Alunos
+                <ArrowRight className="h-4 w-4" />
+              </div>
+
+              <p className="text-xs text-slate-400 mt-1">Atuar sobre métricas de alto risco</p>
+            </CardContent>
+          </Card>
+
+          {/* Card 2: Acompanhamentos Ativos */}
+          <Card
+            className="border-l-[6px] border-l-amber-400 cursor-pointer shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 group bg-gradient-to-br from-white to-amber-50/20"
+            onClick={() => navigate('/coordenacao/intervencoes')}
+          >
+            <CardContent className="p-5 flex flex-col h-full justify-between gap-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-slate-600 font-medium text-sm">Acompanhamentos Ativos</h3>
+                  <p className="text-5xl font-bold text-amber-500 mt-2">{activeInterventions}</p>
+                </div>
+                <Activity className="h-8 w-8 text-amber-400 opacity-80" />
+              </div>
+
+              <div className="space-y-2 mt-4">
+                <div className="flex justify-between text-xs font-semibold text-slate-500">
+                  <span>Planos de Ação Criados</span>
+                  <span className="text-amber-500">42%</span>
+                </div>
+                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                  <div className="bg-amber-400 h-full transition-all duration-1000 w-[42%]"></div>
+                </div>
+              </div>
+
+              <div className="flex justify-between mt-2 pt-2 pb-1 border-t border-slate-100">
+                <div className="text-center w-1/2 border-r border-slate-100">
+                  <p className="text-xs text-slate-500 font-medium">No Prazo</p>
+                  <p className="text-emerald-600 font-bold">{activeInterventions - overdueInterventions}</p>
+                </div>
+                <div className="text-center w-1/2">
+                  <p className="text-xs text-slate-500 font-medium">Atrasados</p>
+                  <p className="text-red-500 font-bold animate-pulse">{overdueInterventions}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 pb-1 border-t border-slate-100">
+                <div className="flex items-center text-amber-600 text-xs font-bold gap-1 group-hover:gap-2 transition-all">
+                  Gerenciar Acompanhamentos <ArrowRight className="h-3 w-3" />
+                </div>
               </div>
             </CardContent>
           </Card>
-          <Card className="border-l-4 border-l-primary">
-            <CardContent className="pt-4 flex items-center gap-3">
-              <Brain className="h-8 w-8 text-primary" />
-              <div>
-                <p className="text-2xl font-bold">{pendingPsych}</p>
-                <p className="text-xs text-muted-foreground">Encaminhamentos Pendentes</p>
+
+          {/* Card 3: Encaminhamentos Psicologia */}
+          <Card
+            className="border-l-[6px] border-l-blue-500 cursor-pointer shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 group bg-gradient-to-br from-white to-blue-50/20"
+            onClick={() => navigate('/coordenacao/intervencoes?filtro=psicologia')}
+          >
+            <CardContent className="p-5 flex flex-col h-full justify-between gap-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-slate-600 font-medium text-sm">Aguardando Psicologia</h3>
+                  <p className="text-5xl font-bold text-blue-600 mt-2">{pendingPsych}</p>
+                </div>
+                <Brain className="h-8 w-8 text-blue-400 opacity-80" />
+              </div>
+
+              <div className="space-y-1 mt-4">
+                <p className="text-xs font-semibold text-slate-500">Prazo Regimental de Escuta</p>
+                <p className="text-slate-700 font-bold text-sm mt-1">48hs Úteis</p>
+              </div>
+
+              <div className="mt-4 pt-4 pb-1 border-t border-slate-100">
+                <div className="flex items-center text-blue-600 text-xs font-bold gap-1 group-hover:gap-2 transition-all">
+                  Cobrar Parecer <ArrowRight className="h-3 w-3" />
+                </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Defasagem por Área</CardTitle></CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={areaData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="area" tick={{ fontSize: 12 }} />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="insuficientes" fill="hsl(215, 70%, 40%)" radius={[4, 4, 0, 0]} />
+        <div className="grid gap-6 lg:grid-cols-2 mt-6">
+          {/* Gráfico 1: Defasagem */}
+          <Card className="border shadow-sm overflow-hidden flex flex-col">
+            <div className="bg-[#f8f9fc] border-b border-slate-100 px-6 py-4 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-blue-600" />
+              <h3 className="text-slate-800 font-bold text-lg">Defasagem por Área</h3>
+            </div>
+            <CardContent className="pt-8 flex-1 pb-4">
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={areaData} margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="area" tick={{ fontSize: 13, fill: '#64748b' }} axisLine={false} tickLine={false} dy={10} />
+                  <YAxis tick={{ fontSize: 13, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    cursor={{ fill: '#f1f5f9' }}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Bar dataKey="insuficientes" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={60}>
+                    <LabelList dataKey="insuficientes" position="top" fill="#1d4ed8" fontSize={12} fontWeight="bold" />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader><CardTitle className="text-base">Distribuição de Prioridade</CardTitle></CardHeader>
-            <CardContent className="flex justify-center">
-              <ResponsiveContainer width="100%" height={220}>
+
+          {/* Gráfico 2: Distribuição */}
+          <Card className="border shadow-sm overflow-hidden flex flex-col">
+            <div className="bg-[#f0fdf4] border-b border-emerald-50 px-6 py-4 flex items-center gap-2">
+              <Users className="h-5 w-5 text-emerald-600" />
+              <h3 className="text-slate-800 font-bold text-lg">Distribuição de Prioridade</h3>
+            </div>
+            <CardContent className="flex justify-center flex-1 pt-8 pb-4">
+              <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    innerRadius={0}
+                    dataKey="value"
+                    stroke="#fff"
+                    strokeWidth={2}
+                    label={({ percent }) => percent > 0 ? `${(percent * 100).toFixed(0)}%` : ''}
+                    labelLine={false}
+                    className="text-white text-xs font-bold"
+                  >
                     {pieData.map((entry, index) => (
                       <Cell key={index} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '13px', paddingTop: '10px' }} />
                 </PieChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
         </div>
 
-        <div className="flex gap-3 flex-wrap">
-          <Card className="flex-1 min-w-[200px] cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/coordenacao/alertas")}>
-            <CardContent className="pt-4 text-center">
-              <AlertTriangle className="h-6 w-6 mx-auto mb-2 text-risk-high" />
-              <p className="font-medium text-sm">Painel de Alertas</p>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Bottom Action Card 1: Diretório de Alunos */}
+          <Card
+            className="border border-violet-100 shadow-sm bg-violet-50/50 hover:shadow-md cursor-pointer transition-all hover:-translate-y-1 group"
+            onClick={() => console.log('Navegar para busca de alunos')}
+          >
+            <CardContent className="p-8 text-center space-y-4">
+              <AlertTriangle className="h-10 w-10 text-violet-600 mx-auto group-hover:scale-110 transition-transform" />
+              <div>
+                <h3 className="text-[#41128a] font-bold text-lg">Diretório Escolar</h3>
+                <p className="text-violet-600/80 text-sm mt-1">Busque rapidamente por qualquer aluno ou turma</p>
+              </div>
+              <div className="bg-violet-600 group-hover:bg-violet-700 transition-colors text-white font-bold text-xs py-3 rounded-full w-full mt-4 flex justify-center items-center gap-2">
+                Buscar Estudante
+                <ArrowRight className="h-4 w-4" />
+              </div>
             </CardContent>
           </Card>
-          <Card className="flex-1 min-w-[200px] cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/coordenacao/intervencoes")}>
-            <CardContent className="pt-4 text-center">
-              <Activity className="h-6 w-6 mx-auto mb-2 text-accent" />
-              <p className="font-medium text-sm">Gestão de Intervenções</p>
+
+          {/* Bottom Action Card 2: Relatórios */}
+          <Card
+            className="border border-cyan-100 shadow-sm bg-cyan-50/50 hover:shadow-md cursor-pointer transition-all hover:-translate-y-1 group"
+            onClick={() => console.log('Abrir painel de relatórios')}
+          >
+            <CardContent className="p-8 text-center space-y-4">
+              <Activity className="h-10 w-10 text-cyan-700 mx-auto group-hover:scale-110 transition-transform" />
+              <div>
+                <h3 className="text-[#0e5c58] font-bold text-lg">Relatórios e Extratos</h3>
+                <p className="text-cyan-700/80 text-sm mt-1">Exportar PDFs para Conselho de Classe e Auditorias</p>
+              </div>
+              <div className="bg-[#0e7490] group-hover:bg-[#164e63] transition-colors text-white font-bold text-xs py-3 rounded-full w-full mt-4 flex justify-center items-center gap-2">
+                Gerar Relatórios
+                <ArrowRight className="h-4 w-4" />
+              </div>
             </CardContent>
           </Card>
         </div>
+
+
       </div>
     </Layout>
   );

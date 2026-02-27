@@ -8,9 +8,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { useApp } from "@/context/AppContext";
 
 export default function CriticalOccurrenceDetail() {
     const navigate = useNavigate();
+    const { students } = useApp();
+    const studentS1 = students.find((s) => s.id === "s1");
+
+    // Busca na linha do tempo se o caso já foi tratado e o professor já respondeu
+    const followUpEvent = studentS1?.timeline.find(e => e.description.startsWith("Feedback Pós-Crise"));
     const { id } = useParams(); // No cenário real usaríamos para buscar do DB
     const [resolutionText, setResolutionText] = useState("");
     const [isResolved, setIsResolved] = useState(false);
@@ -25,6 +32,9 @@ export default function CriticalOccurrenceDetail() {
     // Modais e Estados Transitórios
     const [isPsychModalOpen, setIsPsychModalOpen] = useState(false);
     const [psychNote, setPsychNote] = useState("");
+    const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+    const [returnNote, setReturnNote] = useState("");
+    const [currentResolvingTask, setCurrentResolvingTask] = useState("");
 
     // Mock Data (Vindo direto do alerta interceptado no Dashboard)
     const occurrence = {
@@ -42,10 +52,23 @@ export default function CriticalOccurrenceDetail() {
         const timeNow = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
         let newLogText = "";
+
+        // Dropdown Actions Handling
         if (actionName === "whatsapp") {
-            newLogText = "Disparou convocação automática via WhatsApp para a família. (n8n)";
+            newLogText = "Registrou envio de mensagem (WhatsApp).";
             if (taskDependency) setActiveTasks(prev => [...prev, taskDependency]);
-            toast({ title: "WhatsApp Enviado!", description: "Aguardando resposta do responsável." });
+            toast({ title: "Registro Salvo", description: "O envio foi registrado no log." });
+
+        } else if (actionName === "ligacao") {
+            newLogText = "Registrou tentativa de contato (Ligação Telefônica).";
+            if (taskDependency) setActiveTasks(prev => [...prev, taskDependency]);
+            toast({ title: "Registro Salvo", description: "O log da ligação foi salvo.", className: "bg-blue-600 text-white" });
+
+        } else if (actionName === "agenda") {
+            newLogText = "Registrou envio de aviso (Agenda do Aluno).";
+            if (taskDependency) setActiveTasks(prev => [...prev, taskDependency]);
+            toast({ title: "Registro Salvo", description: "O envio do recado foi registrado." });
+
         } else if (actionName === "tutelar") {
             newLogText = "Registrou notificação ao Conselho Tutelar/Assistência.";
             toast({ title: "Proteção Acionada", description: "Notificação jurídica gerada.", variant: "destructive" });
@@ -54,7 +77,27 @@ export default function CriticalOccurrenceDetail() {
         setLogs(prev => [...prev, { id: Date.now(), time: timeNow, author: "Coordenação", text: newLogText }]);
     };
 
+    const confirmTaskResolution = () => {
+        const timeNow = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        setLogs(prev => [...prev, {
+            id: Date.now(),
+            time: timeNow,
+            author: "Coordenação",
+            text: `Retorno registrado para pendência "${currentResolvingTask}": "${returnNote}"`
+        }]);
+        setActiveTasks(prev => prev.filter(t => t !== currentResolvingTask));
+        setIsReturnModalOpen(false);
+        setReturnNote("");
+        setCurrentResolvingTask("");
+        toast({ title: "Retorno Registrado", description: "O log da ocorrência foi atualizado." });
+    };
+
     const handlePsychAction = () => {
+        if (psychNote.trim() === "") {
+            toast({ title: "Campo Obrigatório", variant: "destructive", description: "Por favor, adicione uma nota explicando o motivo do encaminhamento." });
+            return;
+        }
+
         const timeNow = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         setLogs(prev => [...prev, {
             id: Date.now(),
@@ -62,7 +105,7 @@ export default function CriticalOccurrenceDetail() {
             author: "Coordenação",
             text: `Acionou a Psicologia. Nota: "${psychNote}"`
         }]);
-        setActiveTasks(prev => [...prev, "Aguardando Parecer da Psicóloga"]);
+        setActiveTasks(prev => [...prev, "Aguardando Aceite da Psicóloga"]);
         setIsPsychModalOpen(false);
         setPsychNote("");
         toast({ title: "Psicologia Acionada", description: "O caso foi enviado para a fila hospitalar/crise." });
@@ -154,6 +197,35 @@ export default function CriticalOccurrenceDetail() {
 
                             </CardContent>
                         </Card>
+
+                        {/* NOVO CARTÃO: Retorno da Rede de Apoio (Aparece quando o ciclo termina) */}
+                        {followUpEvent && (
+                            <Card className="border-emerald-200 shadow-sm bg-emerald-50/30 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <CardHeader className="pb-3 border-b border-emerald-100 bg-white">
+                                    <CardTitle className="text-base flex items-center gap-2 text-emerald-800">
+                                        <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                                        Gestão de Crise (Retorno da Rede)
+                                    </CardTitle>
+                                    <CardDescription className="text-xs">
+                                        Acompanhamento integrado registrado. Pronto para arquivamento.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="pt-4 space-y-4">
+                                    <div className="space-y-1">
+                                        <Label className="text-sm font-bold text-slate-700">1. Contenção Psicológica</Label>
+                                        <p className="text-sm text-slate-600 italic bg-white p-3 border border-slate-100 rounded-md">
+                                            "A aluna foi acolhida, escuta ativa realizada... Acusou recebimento, assumiu o caso e registrou contenção da crise na ficha da aluna. Familia notificada."
+                                        </p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-sm font-bold text-slate-700">2. {followUpEvent.description.split(":")[0]}</Label>
+                                        <p className="text-sm text-slate-600 italic bg-white p-3 border border-slate-100 rounded-md">
+                                            {followUpEvent.description.split(":")[1]?.trim() || "Feedback do professor."}
+                                        </p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
                     </div>
 
                     {/* LADO DIREITO: O PLANO DE AÇÃO */}
@@ -173,15 +245,46 @@ export default function CriticalOccurrenceDetail() {
                                 <div className="space-y-3">
                                     <Label className="text-sm font-bold text-slate-700">1. Ferramentas de Ação Rápida</Label>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        <Button variant="outline" className="justify-start gap-2 h-auto py-3 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700" onClick={() => handleAction("whatsapp", "Aguardando Confirmação do Responsável")} disabled={isResolved || activeTasks.includes("Aguardando Confirmação do Responsável")}>
-                                            <PhoneCall className="w-4 h-4 text-emerald-600" />
-                                            <div className="flex flex-col items-start text-left">
-                                                <span className="font-semibold">Convocar Família</span>
-                                                <span className="text-xs font-normal opacity-80">WhatsApp / n8n</span>
-                                            </div>
-                                        </Button>
 
-                                        <Button variant="outline" className="justify-start gap-2 h-auto py-3 border-blue-200 hover:bg-blue-50 hover:text-blue-700" onClick={() => setIsPsychModalOpen(true)} disabled={isResolved || activeTasks.includes("Aguardando Parecer da Psicóloga")}>
+                                        {/* NOVO: Menu Dropdown de Tentativas (Evita travar processo) */}
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild disabled={isResolved}>
+                                                <Button variant="outline" className="justify-start gap-2 h-auto py-3 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 w-full">
+                                                    <PhoneCall className="w-4 h-4 text-emerald-600" />
+                                                    <div className="flex flex-col items-start text-left">
+                                                        <span className="font-semibold">Acionar Família</span>
+                                                        <span className="text-xs font-normal opacity-80">Selecione o canal</span>
+                                                    </div>
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent className="w-64" align="start">
+                                                <DropdownMenuLabel>Canais de Contato</DropdownMenuLabel>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem onClick={() => handleAction("whatsapp", "Aguardando Retorno (WhatsApp)")} className="gap-2 cursor-pointer font-medium p-3">
+                                                    <MessageSquare className="w-4 h-4 text-emerald-600" />
+                                                    <div>
+                                                        <span>Registrar Envio (WhatsApp)</span>
+                                                        <p className="text-[10px] text-muted-foreground font-normal">Registra disparo e abre pendência.</p>
+                                                    </div>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleAction("ligacao", "Aguardando Retorno (Ligação)")} className="gap-2 cursor-pointer font-medium p-3">
+                                                    <PhoneCall className="w-4 h-4 text-blue-600" />
+                                                    <div>
+                                                        <span>Registrar Ligação</span>
+                                                        <p className="text-[10px] text-muted-foreground font-normal">Registra a tentativa e abre pendência.</p>
+                                                    </div>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleAction("agenda", "Aguardando Retorno (Agenda)")} className="gap-2 cursor-pointer font-medium p-3">
+                                                    <FileText className="w-4 h-4 text-amber-600" />
+                                                    <div>
+                                                        <span>Registrar Recado via Agenda</span>
+                                                        <p className="text-[10px] text-muted-foreground font-normal">Registra envio e abre pendência.</p>
+                                                    </div>
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+
+                                        <Button variant="outline" className="justify-start gap-2 h-auto py-3 border-blue-200 hover:bg-blue-50 hover:text-blue-700" onClick={() => setIsPsychModalOpen(true)} disabled={isResolved || activeTasks.includes("Aguardando Aceite da Psicóloga")}>
                                             <Brain className="w-4 h-4 text-blue-600" />
                                             <div className="flex flex-col items-start text-left">
                                                 <span className="font-semibold">Acionar Psicóloga</span>
@@ -214,9 +317,28 @@ export default function CriticalOccurrenceDetail() {
                                                         </span>
                                                         Pendência: {task}
                                                     </div>
-                                                    <Button variant="ghost" size="sm" className="h-6 text-xs text-orange-700 hover:bg-orange-100" onClick={() => setActiveTasks(prev => prev.filter(t => t !== task))}>
-                                                        ✓ Marcar Recebido
-                                                    </Button>
+                                                    {task === "Aguardando Aceite da Psicóloga" ? (
+                                                        <Button variant="ghost" size="sm" className="h-6 text-[10px] text-blue-700 hover:bg-blue-100 font-bold border border-blue-200" onClick={() => {
+                                                            const timeNow = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                                                            setLogs(prev => [...prev, {
+                                                                id: Date.now(),
+                                                                time: timeNow,
+                                                                author: "Dra. Fernanda (Psicologia)",
+                                                                text: `✓ Acusou recebimento, assumiu o caso e registrou contenção da crise na ficha da aluna.`
+                                                            }]);
+                                                            setActiveTasks(prev => prev.filter(t => t !== task));
+                                                            toast({ title: "Psicologia em Ação", description: "Aceite simulado com sucesso.", className: "bg-blue-600 text-white border-0" });
+                                                        }}>
+                                                            [Simular] Aceite do Psicólogo
+                                                        </Button>
+                                                    ) : (
+                                                        <Button variant="ghost" size="sm" className="h-6 text-xs text-orange-700 hover:bg-orange-100" onClick={() => {
+                                                            setCurrentResolvingTask(task);
+                                                            setIsReturnModalOpen(true);
+                                                        }}>
+                                                            ✓ Registrar Retorno Manual
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
@@ -284,13 +406,45 @@ export default function CriticalOccurrenceDetail() {
                         <Textarea
                             value={psychNote}
                             onChange={(e) => setPsychNote(e.target.value)}
-                            placeholder="Ex: Enviei WhatsApp para a mãe e estou aguardando. Preciso que você avalie os sintomas narrados..."
+                            placeholder="Ex: O aluno apresentou choro constante e isolamento durante o recreio. Solicito avaliação urgente dos sintomas observados."
                             className="resize-none h-24"
                         />
                     </div>
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setIsPsychModalOpen(false)}>Cancelar</Button>
                         <Button className="bg-blue-600 hover:bg-blue-700" onClick={handlePsychAction}>Confirmar Encaminhamento</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal para Registrar Retorno da Família */}
+            <Dialog open={isReturnModalOpen} onOpenChange={setIsReturnModalOpen}>
+                <DialogContent className="sm:max-w-[450px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-slate-800">
+                            <MessageSquare className="w-5 h-5 text-emerald-600" />
+                            Registrar Retorno
+                        </DialogTitle>
+                        <DialogDescription>
+                            Adicione os detalhes da resposta para baixar esta pendência.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 py-4">
+                        <Label>Nota de Resolução ({currentResolvingTask}):</Label>
+                        <Textarea
+                            value={returnNote}
+                            onChange={(e) => setReturnNote(e.target.value)}
+                            placeholder="Ex: A mãe ligou de volta e disse que..."
+                            className="resize-none h-24"
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => {
+                            setIsReturnModalOpen(false);
+                            setReturnNote("");
+                            setCurrentResolvingTask("");
+                        }}>Cancelar</Button>
+                        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={confirmTaskResolution}>Salvar Registro</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

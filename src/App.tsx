@@ -8,7 +8,7 @@ import ProfileSelection from "./pages/ProfileSelection";
 import ProfessorDashboard from "./pages/professor/ProfessorDashboard";
 import StudentList from "./pages/professor/StudentList";
 import StudentDetail from "./pages/professor/StudentDetail";
-import NewAssessment from "./pages/professor/NewAssessment";
+
 import PsychologyDashboard from "./pages/psychology/PsychologyDashboard";
 import PsychStudentDetail from "./pages/psychology/PsychStudentDetail";
 import CoordinationDashboard from "./pages/coordination/CoordinationDashboard";
@@ -35,8 +35,7 @@ const App = () => (
             <Route path="/professor" element={<ProfessorDashboard />} />
             <Route path="/professor/turma/:turmaId" element={<StudentList />} />
             <Route path="/professor/aluno/:studentId" element={<StudentDetail />} />
-            <Route path="/professor/aluno/:studentId/avaliacao" element={<NewAssessment />} />
-            <Route path="/professor/aluno/:studentId/avaliacao-teste" element={<ExperimentalAssessment />} />
+            <Route path="/professor/aluno/:studentId/avaliacao" element={<ExperimentalAssessment />} />
             <Route path="/psicologia" element={<PsychologyDashboard />} />
             <Route path="/psicologia/aluno/:studentId" element={<PsychStudentDetail />} />
             <Route path="/coordenacao" element={<CoordinationDashboard />} />

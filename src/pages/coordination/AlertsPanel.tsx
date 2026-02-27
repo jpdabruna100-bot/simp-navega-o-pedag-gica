@@ -9,17 +9,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Eye, ClipboardList, Brain } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function AlertsPanel() {
   const { students, setStudents } = useApp();
   const navigate = useNavigate();
   const [turmaFilter, setTurmaFilter] = useState("all");
   const [riskFilter, setRiskFilter] = useState<RiskLevel | "all">("all");
+  const [referralStudentId, setReferralStudentId] = useState<string | null>(null);
+  const [referralReason, setReferralReason] = useState("");
 
   // Helper: check if student has dificuldadePercebida in latest assessment
   const hasDificuldade = (s: typeof students[0]) => {
     const last = s.assessments[s.assessments.length - 1];
     return last?.dificuldadePercebida === true;
+  };
+
+  // Helper: check if there are active interventions/actions
+  const getActiveAction = (s: typeof students[0]) => {
+    return s.interventions.find(i => i.status === "Aguardando" || i.status === "Em_Acompanhamento");
   };
 
   const atRisk = students
@@ -28,27 +37,36 @@ export default function AlertsPanel() {
     .filter((s) => riskFilter === "all" || s.riskLevel === riskFilter)
     .sort((a, b) => (a.riskLevel === "high" ? -1 : b.riskLevel === "high" ? 1 : 0));
 
-  const handleReferPsych = (studentId: string) => {
+  const handleConfirmReferral = () => {
+    if (!referralStudentId) return;
+    if (!referralReason.trim()) {
+      toast({ title: "Informe o motivo do encaminhamento", variant: "destructive" });
+      return;
+    }
+
     setStudents((prev) =>
       prev.map((s) =>
-        s.id === studentId
+        s.id === referralStudentId
           ? {
-              ...s,
-              psychReferral: true,
-              timeline: [
-                ...s.timeline,
-                {
-                  id: `tl-ref-${Date.now()}`,
-                  date: new Date().toISOString().split("T")[0],
-                  type: "referral" as const,
-                  description: "Encaminhado para avaliação psicopedagógica pela Coordenação",
-                },
-              ],
-            }
+            ...s,
+            psychReferral: true,
+            psychReferralReason: referralReason,
+            timeline: [
+              ...s.timeline,
+              {
+                id: `tl-ref-${Date.now()}`,
+                date: new Date().toISOString().split("T")[0],
+                type: "referral" as const,
+                description: "Encaminhado para avaliação psicopedagógica pela Coordenação",
+              },
+            ],
+          }
           : s
       )
     );
     toast({ title: "Aluno encaminhado para Psicologia" });
+    setReferralStudentId(null);
+    setReferralReason("");
   };
 
   return (
@@ -70,6 +88,8 @@ export default function AlertsPanel() {
         <div className="space-y-2">
           {atRisk.map((student) => {
             const turma = turmas.find((t) => t.id === student.turmaId);
+            const activeAction = getActiveAction(student);
+
             return (
               <div key={student.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-card rounded-lg border">
                 <div className="flex items-center gap-3">
@@ -80,23 +100,28 @@ export default function AlertsPanel() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {hasDificuldade(student) && (
+                  {activeAction && (
+                    <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200 font-medium">
+                      Em Acompanhamento
+                    </span>
+                  )}
+                  {hasDificuldade(student) && !activeAction && (
                     <span className="text-xs bg-risk-medium/10 text-risk-medium px-2 py-0.5 rounded-full border border-risk-medium/20 font-medium">
                       ⚠ Dificuldade percebida
                     </span>
                   )}
                   {student.psychReferral && (
-                    <span className="text-xs bg-accent/10 text-accent px-2 py-0.5 rounded-full">Psico ✓</span>
+                    <span className="text-xs bg-accent/10 text-accent px-2 py-0.5 rounded-full border border-accent/20">Psicologia ✓</span>
                   )}
                   <Button size="sm" variant="outline" onClick={() => navigate(`/coordenacao/aluno/${student.id}`)}>
                     <Eye className="h-3.5 w-3.5 mr-1" /> Ficha
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => navigate(`/coordenacao/intervencoes?aluno=${student.id}`)}>
-                    <ClipboardList className="h-3.5 w-3.5 mr-1" /> Intervenção
+                    <ClipboardList className="h-3.5 w-3.5 mr-1" /> {activeAction ? "Acompanhamento" : "Registrar Ação"}
                   </Button>
                   {!student.psychReferral && (
-                    <Button size="sm" variant="outline" className="text-risk-high border-risk-high/30 hover:bg-risk-high/10" onClick={() => handleReferPsych(student.id)}>
-                      <Brain className="h-3.5 w-3.5 mr-1" /> Psicologia
+                    <Button size="sm" variant="outline" className="text-risk-high border-risk-high/30 hover:bg-risk-high/10" onClick={() => setReferralStudentId(student.id)}>
+                      <Brain className="h-3.5 w-3.5 mr-1" /> Acionar Psicologia
                     </Button>
                   )}
                 </div>
@@ -105,6 +130,32 @@ export default function AlertsPanel() {
           })}
           {atRisk.length === 0 && <p className="text-center text-muted-foreground py-8">Nenhum aluno em risco encontrado.</p>}
         </div>
+
+        {/* Modal de Encaminhamento para Psicologia */}
+        <Dialog open={!!referralStudentId} onOpenChange={(open) => !open && setReferralStudentId(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Acionar Psicologia</DialogTitle>
+              <DialogDescription>
+                Por favor, descreva brevemente a queixa ou o motivo pelo qual você está acionando a equipe multidisciplinar. Esse relato guiará a triagem.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Textarea
+                placeholder="Exemplo: Professor relata dificuldade severa motora e isolamento social nos últimos 30 dias..."
+                value={referralReason}
+                onChange={(e) => setReferralReason(e.target.value)}
+                className="min-h-[100px]"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setReferralStudentId(null)}>Cancelar</Button>
+              <Button onClick={handleConfirmReferral} className="bg-risk-high hover:bg-risk-high/90 text-white">
+                Enviar para Psicologia
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

@@ -5,7 +5,7 @@ import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, Clock, AlertTriangle, Send, ShieldAlert } from "lucide-react";
+import { FileText, Clock, AlertTriangle, Send, ShieldAlert, CheckCircle2, MessageSquareHeart } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ import { toast } from "@/hooks/use-toast";
 
 export default function StudentDetail() {
   const { studentId } = useParams();
-  const { students } = useApp();
+  const { students, setStudents } = useApp();
   const navigate = useNavigate();
 
   const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -23,6 +23,10 @@ export default function StudentDetail() {
 
   // Mock State para Ocorrência Ativa
   const [activeAlertState, setActiveAlertState] = useState<"novo" | "em_tratativa" | null>(null);
+
+  // Mock State para Follow-up (Pós-Crise)
+  const [followUpNote, setFollowUpNote] = useState("");
+  const [followUpSubmitted, setFollowUpSubmitted] = useState(false);
 
   const student = students.find((s) => s.id === studentId);
   if (!student) return <Layout><p>Aluno não encontrado.</p></Layout>;
@@ -101,6 +105,73 @@ export default function StudentDetail() {
               </div>
               {lastAssessment.dificuldadePercebida && (
                 <p className="mt-2 text-sm text-risk-high font-medium">⚠ Dificuldade percebida</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Follow-up / Acompanhamento Pós-Crise (Exclusivo para simulação de caso estabilizado) */}
+        {studentId === "s1" && (
+          <Card className={`border transition-all duration-500 shadow-sm ${followUpSubmitted ? 'border-emerald-200 bg-emerald-50/50' : 'border-blue-200 bg-blue-50/30'}`}>
+            <CardHeader className="pb-3 border-b border-blue-100/50">
+              <CardTitle className={`text-base flex items-center gap-2 ${followUpSubmitted ? 'text-emerald-800' : 'text-blue-800'}`}>
+                {followUpSubmitted ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <MessageSquareHeart className="h-5 w-5 text-blue-600" />}
+                Follow-up: Acompanhamento Pós-Crise
+              </CardTitle>
+              <CardDescription className={followUpSubmitted ? 'text-emerald-700/70' : 'text-blue-700/70'}>
+                {followUpSubmitted
+                  ? "Obrigado! Seu feedback foi anexado ao prontuário da aluna."
+                  : "A Psicologia realizou a contenção desta aluna recentemente. Como está o comportamento dela em sala hoje?"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {!followUpSubmitted ? (
+                <div className="space-y-3">
+                  <Textarea
+                    value={followUpNote}
+                    onChange={(e) => setFollowUpNote(e.target.value)}
+                    placeholder="Ex: A aluna está mais calma hoje, interagiu um pouco com os colegas..."
+                    className="min-h-[80px] bg-white border-blue-200"
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                      onClick={() => {
+                        if (followUpNote.trim() === "") {
+                          toast({ title: "Campo vazio", description: "Por favor, escreva como a aluna está interagindo em sala.", variant: "destructive" });
+                          return;
+                        }
+
+                        // Registra o feedback na linha do tempo global para os outros papéis (Psicologia e Coordenação)
+                        setStudents(prev => prev.map(s => {
+                          if (s.id !== studentId) return s;
+                          return {
+                            ...s,
+                            timeline: [
+                              ...s.timeline,
+                              {
+                                id: `tl_fu_${Date.now()}`,
+                                date: new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }),
+                                type: "intervention",
+                                description: `Feedback Pós-Crise (Professora): "${followUpNote}"`
+                              }
+                            ]
+                          };
+                        }));
+
+                        setFollowUpSubmitted(true);
+                        toast({ title: "Feedback Enviado", description: "A Psicologia e a Coordenação receberam sua atualização.", className: "bg-emerald-600 text-white" });
+                      }}
+                    >
+                      <Send className="w-4 h-4" />
+                      Enviar Atualização
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white p-3 rounded-md border border-emerald-100 shadow-sm text-sm text-slate-700 italic">
+                  "{followUpNote}"
+                </div>
               )}
             </CardContent>
           </Card>
