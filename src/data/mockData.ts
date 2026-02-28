@@ -99,7 +99,7 @@ export interface Intervention {
   id: string;
   date: string;
   // A categoria de ação escolhida
-  actionCategory: "Ações Internas" | "Acionar Família" | "Acionar Psicologia" | "Acionar Psicopedagogia";
+  actionCategory: "Ações Internas" | "Acionar Família" | "Acionar Psicologia" | "Acionar Psicopedagogia" | "Equipe Multidisciplinar";
   // A ferramenta específica escolhida dentro do cardápio
   actionTool: string;
   objetivo: string;
@@ -110,6 +110,7 @@ export interface Intervention {
   pendingUntil?: string; // Prazo estipulado para a ação resolver
   resolutionAta?: string; // Preenchimento obrigatório para fechar o ciclo
   updates?: InterventionUpdate[]; // Respostas diárias e andamento livre
+  acceptedBy?: string; // Profissional Multidisciplinar que assumiu (se houve triagem/aceite)
 }
 
 export interface TimelineEvent {
@@ -129,7 +130,7 @@ export interface Turma {
 export interface User {
   id: string;
   name: string;
-  role: "professor" | "psicologia" | "coordenacao" | "diretoria" | "admin";
+  role: "professor" | "psicologia" | "psicopedagogia" | "coordenacao" | "diretoria" | "admin";
   email: string;
 }
 
@@ -148,6 +149,7 @@ export const users: User[] = [
   { id: "u1", name: "Profª. Carla Mendes", role: "professor", email: "carla@simp.edu" },
   { id: "u2", name: "Prof. Ricardo Alves", role: "professor", email: "ricardo@simp.edu" },
   { id: "u3", name: "Dra. Fernanda Costa", role: "psicologia", email: "fernanda@simp.edu" },
+  { id: "u7", name: "Dra. Beatriz Souza", role: "psicopedagogia", email: "beatriz@simp.edu" },
   { id: "u4", name: "Coord. Marcos Lima", role: "coordenacao", email: "marcos@simp.edu" },
   { id: "u5", name: "Dir. Patrícia Santos", role: "diretoria", email: "patricia@simp.edu" },
   { id: "u6", name: "Admin Sistema", role: "admin", email: "admin@simp.edu" },
@@ -175,7 +177,7 @@ export function getPsychStatus(student: Student): PsychStatus {
 export function getPsychStatusLabel(status: PsychStatus): string {
   switch (status) {
     case "pendente": return "Avaliação pendente";
-    case "em_acompanhamento": return "Em acompanhamento";
+    case "em_acompanhamento": return "Intervenções Pontuais";
     case "avaliado": return "Avaliado";
   }
 }
@@ -295,10 +297,10 @@ function generateStudents(turmaId: string, count: number, startIdx: number): Stu
       classificacao: concluidoSemAcompanhamento ? "Típico" : (risk === "high" ? "Neurodivergente" : "Suspeita"),
       necessitaAcompanhamento: !concluidoSemAcompanhamento,
       observacao: concluidoSemAcompanhamento
-        ? "Avaliação inicial concluída. Aluno dentro do esperado para a idade, sem necessidade de acompanhamento."
-        : "Aluno apresenta dificuldades significativas que requerem acompanhamento especializado.",
+        ? "Avaliação inicial concluída. Aluno dentro do esperado para a idade, sem necessidade de acompanhamento periódico."
+        : "Aluno apresenta necessidades que requerem intervenções pontuais na escola.",
       possuiPEI: risk === "high" && !concluidoSemAcompanhamento ? "Em elaboração" : "Não",
-      responsavel: "Dra. Fernanda Costa",
+      responsavel: randomFrom(["Dra. Fernanda Costa", "Dra. Beatriz Souza"]),
     }] : [];
 
     const familyContact: FamilyContact | undefined = hasPsych ? {
@@ -314,13 +316,22 @@ function generateStudents(turmaId: string, count: number, startIdx: number): Stu
     const interventions: Intervention[] = risk !== "low" ? [{
       id: `int${id}`,
       date: "2025-01-20",
-      actionCategory: randomFrom(["Ações Internas", "Acionar Família", "Acionar Psicologia"] as const),
-      actionTool: randomFrom(["Alinhamento Interno", "Comunicado Oficial", "Reunião Presencial", "Avaliação Urgente"]),
+      actionCategory: randomFrom(["Ações Internas", "Acionar Família", "Acionar Psicologia", "Equipe Multidisciplinar"] as const),
+      actionTool: randomFrom(["Alinhamento Interno", "Comunicado Oficial", "Reunião Presencial", "Pendente de Avaliação Clínica/Triagem"]),
       objetivo: "Melhorar desempenho acadêmico e comportamental",
       responsavel: "Coord. Marcos Lima",
-      status: randomFrom(["Aguardando", "Concluído"] as const),
+      status: randomFrom(["Aguardando", "Concluído", "Em_Acompanhamento"] as const),
       pendingUntil: Math.random() > 0.5 ? "2025-03-10" : undefined,
     }] : [];
+
+    // Assign 'acceptedBy' to "Multi" interventions not in triage
+    interventions.forEach(i => {
+      if (["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory)) {
+        if (i.status !== "Aguardando" || Math.random() > 0.5) {
+          i.acceptedBy = randomFrom(["Dra. Fernanda (Psicologia)", "Dra. Beatriz (Psicopedagogia)"]);
+        }
+      }
+    });
 
     const timeline: TimelineEvent[] = [
       { id: `tl1${id}`, date: "2025-01-15", type: "assessment", description: "Avaliação pedagógica realizada" },
@@ -390,6 +401,31 @@ if (s7) {
   }];
 }
 
+const s5 = initialStudents.find((s) => s.id === "s5");
+if (s5) {
+  s5.riskLevel = "high";
+  s5.interventions = [{
+    id: "ints5",
+    date: "2025-02-25",
+    actionCategory: "Acionar Psicologia",
+    actionTool: "Avaliação Urgente",
+    objetivo: "Sintomas depressivos relatados. Necessita triagem e acolhimento imediato.",
+    responsavel: "Coord. Marcos Lima",
+    status: "Em_Acompanhamento",
+    pendingUntil: "2025-03-05", // Dentro do prazo
+    // acceptedBy está undefined de propósito! (simulando que está na fila sem dono)
+    updates: [
+      {
+        id: "up-s5-1",
+        date: "2025-02-25",
+        time: "08:30",
+        author: "Coord. Marcos Lima",
+        content: "Tratativa iniciada. Caso grave e urgente delegado para a caixa de triagem da equipe multi."
+      }
+    ]
+  }];
+}
+
 const s6 = initialStudents.find((s) => s.id === "s6");
 if (s6) {
   s6.riskLevel = "medium";
@@ -402,6 +438,7 @@ if (s6) {
     responsavel: "Coord. Marcos Lima",
     status: "Em_Acompanhamento",
     pendingUntil: "2025-05-20", // Pendente mas no prazo
+    acceptedBy: "Dra. Fernanda C.",
     updates: [
       {
         id: "up-s6-1",

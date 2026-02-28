@@ -74,7 +74,7 @@ export function ContingencyPlanModal({
 
   const handleConfirm = () => {
     if (!interventionId) return;
-    if (!newActionTool) {
+    if (!newActionTool && newActionCategory !== "Equipe Multidisciplinar") {
       toast({ title: "Selecione a ferramenta de ação rápida", variant: "destructive" });
       return;
     }
@@ -92,8 +92,8 @@ export function ContingencyPlanModal({
             i.id === interventionId
               ? {
                 ...i,
-                actionCategory: newActionCategory as "Ações Internas" | "Acionar Família" | "Acionar Psicologia" | "Acionar Psicopedagogia",
-                actionTool: newActionTool,
+                actionCategory: newActionCategory as any,
+                actionTool: newActionCategory === "Equipe Multidisciplinar" ? "Pendente de Avaliação Clínica/Triagem" : newActionTool,
                 objetivo: newActionDescription,
                 pendingUntil: newActionDeadline ? format(newActionDeadline, "yyyy-MM-dd") : undefined,
                 status: "Em_Acompanhamento" as const,
@@ -161,59 +161,49 @@ export function ContingencyPlanModal({
           <div className="space-y-3">
             <h3 className="font-semibold text-slate-800">1. Ferramentas de Ação Rápida</h3>
             <Tabs value={newActionCategory} onValueChange={setNewActionCategory} className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="Ações Internas">Internas</TabsTrigger>
                 <TabsTrigger value="Acionar Família">Família</TabsTrigger>
-                <TabsTrigger value="Acionar Psicologia">Psicólogo</TabsTrigger>
-                <TabsTrigger value="Acionar Psicopedagogia">Psicoped.</TabsTrigger>
+                <TabsTrigger value="Equipe Multidisciplinar">Equipe Multidisciplinar</TabsTrigger>
               </TabsList>
 
               <div className="mt-4 border rounded-lg p-4 bg-white">
                 <h4 className="text-sm font-medium mb-3">
                   {newActionCategory === "Ações Internas" && "Selecione a Ação Interna"}
                   {newActionCategory === "Acionar Família" && "Canais de Contato"}
-                  {newActionCategory === "Acionar Psicologia" && "Encaminhamento Comportamental / Escuta"}
-                  {newActionCategory === "Acionar Psicopedagogia" && "Encaminhamento Cognitivo / Educacional"}
+                  {newActionCategory === "Equipe Multidisciplinar" && "Encaminhamento Automático"}
                 </h4>
 
-                <Select value={newActionTool} onValueChange={setNewActionTool}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {newActionCategory === "Ações Internas" && (
-                      <>
-                        <SelectItem value="Adaptação Curricular">Adaptação Curricular</SelectItem>
-                        <SelectItem value="Prova com Ledor">Prova com Ledor</SelectItem>
-                        <SelectItem value="Reforço no Contraturno">Reforço no Contraturno</SelectItem>
-                        <SelectItem value="Redução de Atividades">Redução de Atividades</SelectItem>
-                        <SelectItem value="Encaminhamento Sala de Recursos">Encaminhamento Sala de Recursos</SelectItem>
-                      </>
-                    )}
-                    {newActionCategory === "Acionar Família" && (
-                      <>
-                        <SelectItem value="Convite Reunião Presencial">Convite Reunião Presencial</SelectItem>
-                        <SelectItem value="Encaminhamento Clínico Externo">Encaminhamento Clínico Externo</SelectItem>
-                        <SelectItem value="Adaptação de Rotina em Casa">Adaptação de Rotina em Casa</SelectItem>
-                        <SelectItem value="Reportar Indisciplina (Aviso Fixo)">Reportar Indisciplina (Aviso Fixo)</SelectItem>
-                      </>
-                    )}
-                    {newActionCategory === "Acionar Psicologia" && (
-                      <>
-                        <SelectItem value="Acolhimento Emergencial">Acolhimento Emergencial (Imediato)</SelectItem>
-                        <SelectItem value="Escuta Psicológica">Escuta Psicológica</SelectItem>
-                        <SelectItem value="Observação em Sala">Observação Comportamental em Sala</SelectItem>
-                      </>
-                    )}
-                    {newActionCategory === "Acionar Psicopedagogia" && (
-                      <>
-                        <SelectItem value="Avaliação Psicopedagógica">Avaliação Psicopedagógica (Completa)</SelectItem>
-                        <SelectItem value="Avaliação Cognitiva Básica">Avaliação Cognitiva Básica</SelectItem>
-                        <SelectItem value="Triagem de Ensino">Triagem de Processos de Aprendizagem</SelectItem>
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
+                {newActionCategory === "Equipe Multidisciplinar" ? (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded text-sm text-slate-600">
+                    O aluno será encaminhado para a análise da Equipe Multidisciplinar. Após a triagem interna, as profissionais responsáveis farão contato e estabelecerão o plano de ação.
+                  </div>
+                ) : (
+                  <Select value={newActionTool} onValueChange={setNewActionTool}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {newActionCategory === "Ações Internas" && (
+                        <>
+                          <SelectItem value="Adaptação Curricular">Adaptação Curricular</SelectItem>
+                          <SelectItem value="Prova com Ledor">Prova com Ledor</SelectItem>
+                          <SelectItem value="Reforço no Contraturno">Reforço no Contraturno</SelectItem>
+                          <SelectItem value="Redução de Atividades">Redução de Atividades</SelectItem>
+                          <SelectItem value="Encaminhamento Sala de Recursos">Encaminhamento Sala de Recursos</SelectItem>
+                        </>
+                      )}
+                      {newActionCategory === "Acionar Família" && (
+                        <>
+                          <SelectItem value="Convite Reunião Presencial">Convite Reunião Presencial</SelectItem>
+                          <SelectItem value="Encaminhamento Clínico Externo">Encaminhamento Clínico Externo</SelectItem>
+                          <SelectItem value="Adaptação de Rotina em Casa">Adaptação de Rotina em Casa</SelectItem>
+                          <SelectItem value="Reportar Indisciplina (Aviso Fixo)">Reportar Indisciplina (Aviso Fixo)</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </Tabs>
           </div>
@@ -232,7 +222,7 @@ export function ContingencyPlanModal({
           <div className="space-y-3 border-t pt-4">
             <h3 className="font-semibold text-slate-800 flex items-center justify-between">
               3. Prazo de Pendência
-              {(newActionCategory === "Acionar Família" || newActionCategory === "Acionar Psicologia" || newActionCategory === "Acionar Psicopedagogia") && (
+              {(newActionCategory === "Acionar Família" || newActionCategory === "Equipe Multidisciplinar") && (
                 <Badge variant="secondary" className="text-risk-high bg-risk-high/10">
                   Recomendado
                 </Badge>

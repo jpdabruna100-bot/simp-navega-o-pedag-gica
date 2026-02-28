@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Clock, BookOpen, Brain, Phone, FileText, Upload, Eye, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { Clock, BookOpen, Brain, Phone, FileText, Upload, Eye, ShieldAlert, CheckCircle2, UserPlus, ArrowRight } from "lucide-react";
 
 const CONCEPT_RISK_COLOR: Record<string, string> = {
   "Defasada": "hsl(0, 72%, 51%)", "Defasado": "hsl(0, 72%, 51%)", "Insuficiente": "hsl(0, 72%, 51%)",
@@ -161,6 +161,26 @@ export default function PsychStudentDetail() {
     toast({ title: "Documento adicionado (simulação)!" });
   };
 
+  const activeMultiInt = student.interventions.find(i =>
+    ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory) && i.status !== "Concluído"
+  );
+
+  const handleAssumirCaso = (responsavel: string) => {
+    if (!activeMultiInt) return;
+    setStudents(prev => prev.map(s => {
+      if (s.id !== studentId) return s;
+      return {
+        ...s,
+        interventions: s.interventions.map(i => i.id === activeMultiInt.id ? { ...i, acceptedBy: responsavel, status: "Em_Acompanhamento" } : i),
+        timeline: [
+          ...s.timeline,
+          { id: `tl${Date.now()}`, date: new Date().toISOString().split("T")[0], type: "intervention" as const, description: `Caso assumido por ${responsavel}` }
+        ]
+      };
+    }));
+    toast({ title: "Caso Assumido", description: `O caso foi atribuído à ${responsavel}` });
+  };
+
   return (
     <Layout>
       <div className="space-y-6 max-w-3xl mx-auto">
@@ -172,15 +192,37 @@ export default function PsychStudentDetail() {
           <RiskBadge level={student.riskLevel} />
         </div>
 
-        {student.psychReferralReason && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 shadow-sm">
-            <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider mb-2 flex items-center gap-2">
-              <Brain className="h-4 w-4" />
-              Motivo do Encaminhamento (Coordenação)
-            </h3>
-            <p className="text-sm text-blue-900 bg-white/60 p-3 rounded border border-blue-100 italic leading-relaxed">
-              "{student.psychReferralReason}"
-            </p>
+        {activeMultiInt && (
+          <div className={`p-4 rounded-xl border-l-4 shadow-sm mb-6 ${activeMultiInt.acceptedBy ? 'bg-indigo-50/50 border-indigo-400' : 'bg-amber-50 border-amber-400'}`}>
+            <div className="flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-start">
+              <div className="space-y-2 flex-1">
+                <h3 className={`text-sm font-bold uppercase tracking-wider flex items-center gap-2 ${activeMultiInt.acceptedBy ? 'text-indigo-800' : 'text-amber-800'}`}>
+                  {activeMultiInt.acceptedBy ? <Brain className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+                  {activeMultiInt.acceptedBy ? 'Acompanhamento Multidisciplinar' : 'Triagem Pendente (Fila Geral)'}
+                </h3>
+                <p className="text-sm text-slate-700 bg-white/80 p-3 rounded border border-slate-100 italic leading-relaxed">
+                  "{activeMultiInt.objetivo || student.psychReferralReason || "Solicitação de acompanhamento."}"
+                </p>
+              </div>
+
+              <div className="sm:min-w-[200px] flex flex-col gap-2 bg-white p-3 rounded border shadow-sm self-stretch justify-center items-center text-center">
+                <p className="text-xs font-semibold text-slate-500 mb-1">{activeMultiInt.acceptedBy ? "Encarregado Atual" : "Atribuir Responsabilidade"}</p>
+                {activeMultiInt.acceptedBy ? (
+                  <div className="text-sm font-bold text-indigo-700 break-words w-full">
+                    {activeMultiInt.acceptedBy}
+                  </div>
+                ) : (
+                  <span className="text-xs text-amber-600 font-medium">Nenhum profissional assumiu</span>
+                )}
+                <Select onValueChange={handleAssumirCaso}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder={activeMultiInt.acceptedBy ? "Transferir Caso..." : "Assumir Caso"} /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Dra. Fernanda (Psicologia)">Dra. Fernanda (Psicologia)</SelectItem>
+                    <SelectItem value="Dra. Beatriz (Psicopedagogia)">Dra. Beatriz (Psicopedagogia)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
         )}
 

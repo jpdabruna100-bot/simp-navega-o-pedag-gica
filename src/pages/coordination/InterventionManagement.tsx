@@ -52,11 +52,15 @@ export default function InterventionManagement() {
 
         // Aplica o filtro vindo da URL (Cards da Dashboard) ou da Barra
         if (filtroNavegacao === "psicologia") {
-            interventions = interventions.filter(i => i.actionCategory === "Acionar Psicologia" || i.actionCategory === "Acionar Psicopedagogia");
+            interventions = interventions.filter(i => (i.actionCategory === "Acionar Psicologia" || i.actionCategory === "Acionar Psicopedagogia" || i.actionCategory === "Equipe Multidisciplinar") && i.status !== "Aguardando");
         } else if (filtroNavegacao === "urgentes") {
-            interventions = interventions.filter(i => i.riskLevel === "high");
+            interventions = interventions.filter(i => (i.riskLevel === "high" || isOverdue(i.pendingUntil)) && i.status !== "Concluído");
         } else if (filtroNavegacao === "concluidos") {
             interventions = interventions.filter(i => i.status === "Concluído");
+        } else if (filtroNavegacao === "atrasados") {
+            interventions = interventions.filter(i => isOverdue(i.pendingUntil) && i.status === "Em_Acompanhamento");
+        } else if (filtroNavegacao === "familia") {
+            interventions = interventions.filter(i => i.actionCategory === "Acionar Família" && i.status !== "Aguardando");
         }
 
         return interventions;
@@ -168,8 +172,37 @@ export default function InterventionManagement() {
                 </div>
 
                 <div className="text-xs text-muted-foreground mt-1">
-                    <p className="flex items-center gap-1"><NotebookPen className="h-3 w-3" /> {intervention.actionCategory}</p>
-                    <p className="mt-0.5 truncate">{intervention.actionTool}</p>
+                    {intervention.status === "Aguardando" && (
+                        <p className="flex items-center gap-1 font-medium text-slate-500"><NotebookPen className="h-3 w-3" /> Recebido (Pendente de Análise)</p>
+                    )}
+                    {intervention.status !== "Aguardando" && (
+                        <>
+                            {!(intervention.actionCategory === "Acionar Psicologia" || intervention.actionCategory === "Acionar Psicopedagogia" || intervention.actionCategory === "Equipe Multidisciplinar") && (
+                                <p className="flex items-center gap-1"><NotebookPen className="h-3 w-3" /> {intervention.actionCategory}</p>
+                            )}
+                            {(intervention.actionCategory === "Acionar Psicologia" || intervention.actionCategory === "Acionar Psicopedagogia" || intervention.actionCategory === "Equipe Multidisciplinar") && (
+                                <div className={`mt-1.5 flex flex-col gap-1 border border-l-2 p-1.5 rounded bg-white shadow-sm ${intervention.acceptedBy ? 'border-indigo-100 border-l-indigo-400' : 'border-slate-100 border-l-slate-300'}`}>
+                                    <span className={`text-[10px] font-bold uppercase tracking-wider ${intervention.acceptedBy ? 'text-indigo-800' : 'text-slate-500'}`}>
+                                        {intervention.acceptedBy ? intervention.actionCategory.replace("Acionar ", "") : "Equipe Multidisciplinar"}
+                                    </span>
+                                    <span className="text-[10px] font-medium text-slate-600 flex items-center gap-1">
+                                        {intervention.acceptedBy ? (
+                                            <>
+                                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
+                                                Responsável: <span className="text-slate-800 font-semibold">{intervention.acceptedBy}</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                                                Aguardando Triagem/Aceite
+                                            </>
+                                        )}
+                                    </span>
+                                </div>
+                            )}
+                            <p className="mt-1.5 font-medium truncate text-slate-700">{intervention.actionTool}</p>
+                        </>
+                    )}
                 </div>
 
                 {intervention.objetivo && intervention.status !== "Aguardando" && (
@@ -263,7 +296,23 @@ export default function InterventionManagement() {
                         className={`h-8 rounded-full px-4 text-xs ${filtroNavegacao === "psicologia" ? "bg-blue-600 hover:bg-blue-700 text-white" : "text-slate-600 border-slate-200 bg-white"}`}
                         onClick={() => setSearchParams({ filtro: "psicologia" })}
                     >
-                        Aguardando Psicologia
+                        Equipe Multidisciplinar
+                    </Button>
+                    <Button
+                        variant={filtroNavegacao === "familia" ? "default" : "outline"}
+                        size="sm"
+                        className={`h-8 rounded-full px-4 text-xs ${filtroNavegacao === "familia" ? "bg-amber-500 hover:bg-amber-600 text-white" : "text-slate-600 border-slate-200 bg-white"}`}
+                        onClick={() => setSearchParams({ filtro: "familia" })}
+                    >
+                        Esfera Familiar
+                    </Button>
+                    <Button
+                        variant={filtroNavegacao === "atrasados" ? "default" : "outline"}
+                        size="sm"
+                        className={`h-8 rounded-full px-4 text-xs ${filtroNavegacao === "atrasados" ? "bg-red-500 hover:bg-red-600 text-white" : "text-slate-600 border-slate-200 bg-white"}`}
+                        onClick={() => setSearchParams({ filtro: "atrasados" })}
+                    >
+                        Somente Atrasados
                     </Button>
                     <Button
                         variant={filtroNavegacao === "concluidos" ? "default" : "outline"}

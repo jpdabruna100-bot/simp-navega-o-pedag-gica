@@ -137,9 +137,9 @@ export function InterventionDetailView({ interventionToView, studentName, onAddU
                             </div>
                             <div className="bg-amber-50/50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-xl border border-amber-100 shadow-sm text-sm">
                                 <div className="flex justify-between items-start mb-1.5">
-                                    <strong className="text-amber-800">Psicóloga (Comportamental)</strong>
+                                    <strong className="text-amber-800">Equipe Multidisciplinar (Em Triagem)</strong>
                                 </div>
-                                <p className="text-amber-700 leading-relaxed text-[13px]">Fila de Triagem em espera (Atendimentos: 1x semana). Aguardando agenda.</p>
+                                <p className="text-amber-700 leading-relaxed text-[13px]">Aguardando atribuição do caso entre as especialistas (Psicologia ou Psicopedagogia).</p>
                             </div>
                         </div>
                     )}
@@ -150,9 +150,9 @@ export function InterventionDetailView({ interventionToView, studentName, onAddU
                             </div>
                             <div className="bg-amber-50/50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-xl border border-amber-100 shadow-sm text-sm">
                                 <div className="flex justify-between items-start mb-1.5">
-                                    <strong className="text-amber-800">Psicopedagoga (Educacional)</strong>
+                                    <strong className="text-amber-800">Equipe Multidisciplinar (Em Triagem)</strong>
                                 </div>
-                                <p className="text-amber-700 leading-relaxed text-[13px]">Encaminhado para avaliação cognitiva (Atendimentos: 3x semana). Aguardando agenda.</p>
+                                <p className="text-amber-700 leading-relaxed text-[13px]">Aguardando atribuição do caso entre as especialistas (Psicologia ou Psicopedagogia).</p>
                             </div>
                         </div>
                     )}

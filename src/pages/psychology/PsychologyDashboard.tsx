@@ -4,60 +4,85 @@ import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
 import { RiskFilterButtons } from "@/components/RiskFilterButtons";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { turmas, RiskLevel, getPsychStatus, getPsychStatusLabel, getFamilyContactStatusLabel } from "@/data/mockData";
-import { Brain, Clock, CheckCircle, AlertCircle, Phone, ShieldAlert, ArrowRight } from "lucide-react";
+import { turmas, RiskLevel, getPsychStatus, Student } from "@/data/mockData";
+import { Brain, ShieldAlert, ArrowRight, NotebookPen, Clock, CheckCircle2, UserPlus, FileSearch, HeartHandshake } from "lucide-react";
 
-type StatusFilter = "all" | "pendente" | "em_acompanhamento" | "avaliado" | "urgente";
+type MultidisciplinaryStage = "triage" | "assessment" | "followup" | "completed";
 
 export default function PsychologyDashboard() {
   const { students } = useApp();
   const navigate = useNavigate();
   const [turmaFilter, setTurmaFilter] = useState("all");
   const [riskFilter, setRiskFilter] = useState<RiskLevel | "all">("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
+  const [profissionalFilter, setProfissionalFilter] = useState("all");
 
-  const referred = students.filter((s) => s.psychReferral);
+  const hasMultiIntervention = (s: Student) => s.interventions.some(i =>
+    ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory)
+  );
+
+  const referred = students.filter((s) => s.psychReferral || hasMultiIntervention(s));
+
+  // Determine stage for Kanban
+  const getStage = (s: Student): MultidisciplinaryStage => {
+    // Has unaccepted Multi Intervention? (Aguardando Triagem)
+    const hasUnacceptedMulti = s.interventions.some(i =>
+      ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory) &&
+      !i.acceptedBy &&
+      i.status !== "Concluído"
+    );
+    if (hasUnacceptedMulti) return "triage";
+
+    // Legacy referral with no assessments and no accepted intervention
+    if (s.psychReferral && s.psychAssessments.length === 0) {
+      const hasAcceptedInt = s.interventions.some(i =>
+        ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory) && i.acceptedBy
+      );
+      if (!hasAcceptedInt) return "triage";
+    }
+
+    const pStatus = getPsychStatus(s);
+
+    if (pStatus === "pendente") return "assessment";
+    if (pStatus === "em_acompanhamento") return "followup";
+    if (pStatus === "avaliado") return "completed";
+
+    return "triage";
+  };
 
   const filtered = referred
-    .filter((s) => statusFilter === "urgente" ? s.id === "s1" : true)
     .filter((s) => turmaFilter === "all" || s.turmaId === turmaFilter)
     .filter((s) => riskFilter === "all" || s.riskLevel === riskFilter)
-    .filter((s) => ["all", "urgente"].includes(statusFilter) || getPsychStatus(s) === statusFilter)
     .filter((s) => search === "" || s.name.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => { // Force urgent items (like s1) to the top of standard views
-      if (a.id === "s1") return -1;
-      if (b.id === "s1") return 1;
-      return 0;
+    .filter((s) => {
+      if (profissionalFilter === "all") return true;
+
+      const stage = getStage(s);
+      if (stage === "triage") return true; // Fila não assumida é pública para todos verem e coletarem
+
+      const activeInt = s.interventions.find(i =>
+        ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory) && i.status !== "Concluído"
+      );
+
+      if (!activeInt || !activeInt.acceptedBy) return true; // Fallback
+
+      const assumed = activeInt.acceptedBy.toLowerCase();
+      if (profissionalFilter === "psicologia") return assumed.includes("fernanda") || assumed.includes("psicol");
+      if (profissionalFilter === "psicopedagogia") return assumed.includes("beatriz") || assumed.includes("psicopedagog");
+
+      return true;
     });
 
-  const statusIcon = (status: string, isUrgent: boolean = false) => {
-    if (isUrgent) return <ShieldAlert className="h-3.5 w-3.5" />;
-    switch (status) {
-      case "pendente": return <AlertCircle className="h-3.5 w-3.5" />;
-      case "em_acompanhamento": return <Clock className="h-3.5 w-3.5" />;
-      case "avaliado": return <CheckCircle className="h-3.5 w-3.5" />;
-      default: return null;
-    }
-  };
+  const triageStudents = filtered.filter(s => getStage(s) === "triage");
+  const assessmentStudents = filtered.filter(s => getStage(s) === "assessment");
+  const followUpStudents = filtered.filter(s => getStage(s) === "followup");
+  const completedStudents = filtered.filter(s => getStage(s) === "completed");
 
-  const statusVariant = (status: string, isUrgent: boolean = false): "destructive" | "default" | "secondary" | "outline" => {
-    if (isUrgent) return "destructive";
-    switch (status) {
-      case "pendente": return "destructive";
-      case "em_acompanhamento": return "default";
-      case "avaliado": return "secondary";
-      default: return "outline";
-    }
-  };
-
-  // Mock de Alerta Crítico não lido vindo da coordenação
   const [showCriticalAlert, setShowCriticalAlert] = useState(false);
   const [activeAlert] = useState({
     aluno: "Laura Barbosa",
@@ -75,12 +100,70 @@ export default function PsychologyDashboard() {
     return () => clearTimeout(timer);
   }, []);
 
+  const getUrgentHighlight = (s: Student) => s.id === "s1" && getStage(s) !== "completed";
+
+  const renderKanbanCard = (student: Student) => {
+    const isUrgent = getUrgentHighlight(student);
+    const turma = turmas.find((t) => t.id === student.turmaId);
+
+    // Find active multi intervention if any
+    const activeInt = student.interventions.find(i =>
+      ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory) && i.status !== "Concluído"
+    );
+
+    return (
+      <div
+        key={student.id}
+        onClick={() => navigate(`/psicologia/aluno/${student.id}`)}
+        className={`bg-white border rounded-xl p-4 shadow-sm cursor-pointer transition-all hover:shadow-md ${isUrgent ? 'border-red-300 ring-1 ring-red-100 shadow-red-100' : 'border-slate-200'}`}
+      >
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <h3 className={`font-semibold ${isUrgent ? 'text-red-900' : 'text-slate-800'}`}>{student.name}</h3>
+            <p className="text-xs text-muted-foreground">{turma?.name} • {student.matricula}</p>
+          </div>
+          <RiskBadge level={student.riskLevel} />
+        </div>
+
+        {isUrgent && (
+          <div className="mb-2 w-fit">
+            <Badge className="bg-red-600 hover:bg-red-700 text-white text-[10px] uppercase gap-1 px-1.5 py-0.5 animate-pulse">
+              <ShieldAlert className="w-3 h-3" /> Tratativa Crítica (Hoje)
+            </Badge>
+          </div>
+        )}
+
+        <div className="mt-3 space-y-2">
+          {activeInt && activeInt.objetivo && (
+            <div className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded p-1.5 line-clamp-2">
+              <span className="font-semibold text-slate-400">Contexto:</span> {activeInt.objetivo}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
+            {activeInt && activeInt.acceptedBy ? (
+              <div className="flex flex-col">
+                <span className="text-slate-400 font-medium">Responsável:</span>
+                <span className="text-indigo-700 font-semibold truncate max-w-[120px]">{activeInt.acceptedBy}</span>
+              </div>
+            ) : (
+              <span className="text-amber-600 font-medium flex items-center gap-1">
+                <UserPlus className="w-3 h-3" /> Fila Geral
+              </span>
+            )}
+            <Badge variant="outline" className="text-[10px] text-slate-500 font-normal shadow-sm">Ver Prontuário</Badge>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Painel Psicologia</h1>
-          <p className="text-muted-foreground text-sm">Dra. Fernanda Costa</p>
+          <h1 className="text-2xl font-bold">Painel Multidisciplinar</h1>
+          <p className="text-muted-foreground text-sm">Dashboard de Triagem e Intervenções Pontuais</p>
         </div>
 
         <Dialog open={showCriticalAlert} onOpenChange={setShowCriticalAlert}>
@@ -88,10 +171,10 @@ export default function PsychologyDashboard() {
             <DialogHeader>
               <DialogTitle className="text-2xl text-red-700 flex items-center gap-3">
                 <ShieldAlert className="h-8 w-8 animate-pulse text-red-600" />
-                Encaminhamento Crítico Recebido
+                Encaminhamento Crítico
               </DialogTitle>
               <DialogDescription className="text-base text-red-950/70 font-medium pt-2">
-                A coordenação repassou um caso de urgência que requer avaliação psicológica imediata.
+                A coordenação repassou um caso de urgência para a Equipe Multidisciplinar.
               </DialogDescription>
             </DialogHeader>
 
@@ -102,13 +185,13 @@ export default function PsychologyDashboard() {
                   <span className="font-bold text-slate-800 text-base">{activeAlert.aluno} <span className="text-xs font-normal text-slate-500">({activeAlert.turma})</span></span>
                 </div>
                 <div>
-                  <span className="text-red-900/60 block font-medium">Encaminhado por</span>
+                  <span className="text-red-900/60 block font-medium">Solicitante</span>
                   <span className="font-bold text-slate-800 text-base">{activeAlert.coordenador}</span>
                 </div>
               </div>
 
               <div>
-                <span className="text-red-900/60 block font-medium mb-1">Nota da Coordenação</span>
+                <span className="text-red-900/60 block font-medium mb-1">Contexto / Justificativa</span>
                 <p className="text-sm text-slate-700 bg-white p-3 rounded-md border border-red-100 shadow-sm italic leading-relaxed">
                   "{activeAlert.observacaoCoord}"
                 </p>
@@ -117,7 +200,7 @@ export default function PsychologyDashboard() {
 
             <DialogFooter className="sm:justify-between mt-2 flex-col sm:flex-row gap-3">
               <Button variant="ghost" onClick={() => setShowCriticalAlert(false)} className="text-slate-500">
-                Lerei depois
+                Fechar Alerta
               </Button>
               <Button
                 variant="destructive"
@@ -127,7 +210,7 @@ export default function PsychologyDashboard() {
                 }}
                 className="bg-red-600 hover:bg-red-700 font-bold gap-2"
               >
-                Assumir Caso Imediatamente
+                Detalhes do Prontuário
                 <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </DialogFooter>
@@ -140,92 +223,97 @@ export default function PsychologyDashboard() {
             placeholder="Buscar por nome..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full sm:w-56"
+            className="w-full sm:w-64 bg-white"
           />
           <Select value={turmaFilter} onValueChange={setTurmaFilter}>
-            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Turma" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-48 bg-white"><SelectValue placeholder="Turma" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas as turmas</SelectItem>
               {turmas.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-            <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Status" /></SelectTrigger>
+          <Select value={profissionalFilter} onValueChange={setProfissionalFilter}>
+            <SelectTrigger className="w-full sm:w-64 bg-white"><SelectValue placeholder="Profissional" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os status</SelectItem>
-              <SelectItem value="urgente" className="flex items-center gap-1.5 focus:bg-red-100 hover:bg-red-100! font-bold text-red-700!">🚨 Ocorrências Urgentes</SelectItem>
-              <SelectItem value="pendente">Pendentes</SelectItem>
-              <SelectItem value="em_acompanhamento">Em acompanhamento</SelectItem>
-              <SelectItem value="avaliado">Concluídos</SelectItem>
+              <SelectItem value="all">Meus Casos + Fila Geral</SelectItem>
+              <SelectItem value="psicologia">Dra. Fernanda (Psicologia)</SelectItem>
+              <SelectItem value="psicopedagogia">Dra. Beatriz (Psicopedagogia)</SelectItem>
             </SelectContent>
           </Select>
           <RiskFilterButtons value={riskFilter} onChange={setRiskFilter} />
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Brain className="h-4 w-4" /> Alunos Encaminhados ({filtered.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {filtered.map((student) => {
-              const turma = turmas.find((t) => t.id === student.turmaId);
-              const status = getPsychStatus(student);
-              const isUrgent = student.id === "s1";
-              const familyStatus = getFamilyContactStatusLabel(student.familyContact);
-              return (
-                <div
-                  key={student.id}
-                  onClick={() => navigate(`/psicologia/aluno/${student.id}`)}
-                  className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors gap-3 ${isUrgent ? 'bg-red-50/80 hover:bg-red-100 border border-red-200' : 'bg-muted/50 hover:bg-muted'
-                    }`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-medium ${isUrgent ? 'text-red-900' : ''}`}>{student.name}</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs text-muted-foreground">{turma?.name} • Mat: {student.matricula}</p>
-                      {isUrgent && <span className="text-xs font-semibold text-red-500">Hoje</span>}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                      {isUrgent ? (
-                        <Badge className="bg-red-600 hover:bg-red-700 text-white text-[10px] gap-1 px-1.5 py-0.5 animate-pulse">
-                          {statusIcon(status, true)} Tratativa Imediata
-                        </Badge>
-                      ) : (
-                        <Badge variant={statusVariant(status, false)} className="text-[10px] gap-1 px-1.5 py-0.5">
-                          {statusIcon(status, false)}
-                          {getPsychStatusLabel(status)}
-                        </Badge>
-                      )}
+        {/* Kanban Board */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start pt-2">
 
-                      {student.familyContact && !isUrgent && (
-                        <Badge variant="outline" className="text-[10px] gap-1 px-1.5 py-0.5">
-                          <Phone className="h-3 w-3" />
-                          {familyStatus}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <RiskBadge level={student.riskLevel} />
-                </div>
-              );
-            })}
-            {filtered.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in zoom-in duration-300">
-                <div className="bg-emerald-50 p-4 rounded-full mb-3">
-                  <CheckCircle className="h-8 w-8 text-emerald-500" />
-                </div>
-                <h3 className="text-lg font-semibold text-slate-800">Tudo sob controle!</h3>
-                <p className="text-muted-foreground text-sm max-w-sm mt-1">
-                  {statusFilter === "urgente"
-                    ? "Nenhuma ocorrência crítica aguardando sua intervenção no momento."
-                    : "Nenhum aluno encontrado para os filtros selecionados."}
-                </p>
+          {/* Col 1 */}
+          <div className="flex flex-col gap-3 min-w-0">
+            <div className="flex items-center justify-between bg-amber-50 border border-amber-200 p-2.5 rounded-lg">
+              <div className="flex items-center gap-2">
+                <UserPlus className="h-4 w-4 text-amber-600" />
+                <h2 className="font-semibold gap-2 text-amber-900 text-sm">Fila de Triagem</h2>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <Badge variant="secondary" className="bg-amber-200/50 text-amber-800">{triageStudents.length}</Badge>
+            </div>
+            <div className="flex flex-col gap-3">
+              {triageStudents.length === 0 ? (
+                <div className="text-center p-4 border border-dashed rounded-xl text-slate-400 text-sm">Nenhum caso na fila</div>
+              ) : triageStudents.map(renderKanbanCard)}
+            </div>
+          </div>
+
+          {/* Col 2 */}
+          <div className="flex flex-col gap-3 min-w-0">
+            <div className="flex items-center justify-between bg-indigo-50 border border-indigo-200 p-2.5 rounded-lg">
+              <div className="flex items-center gap-2">
+                <FileSearch className="h-4 w-4 text-indigo-600" />
+                <h2 className="font-semibold gap-2 text-indigo-900 text-sm">Em Avaliação Inicial</h2>
+              </div>
+              <Badge variant="secondary" className="bg-indigo-200/50 text-indigo-800">{assessmentStudents.length}</Badge>
+            </div>
+            <div className="flex flex-col gap-3">
+              {assessmentStudents.length === 0 ? (
+                <div className="text-center p-4 border border-dashed rounded-xl text-slate-400 text-sm">Nenhum aluno em avaliação</div>
+              ) : assessmentStudents.map(renderKanbanCard)}
+            </div>
+          </div>
+
+          {/* Col 3 */}
+          <div className="flex flex-col gap-3 min-w-0">
+            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 p-2.5 rounded-lg">
+              <div className="flex items-center gap-2">
+                <HeartHandshake className="h-4 w-4 text-emerald-600" />
+                <h2 className="font-semibold gap-2 text-emerald-900 text-sm">Intervenções Pontuais</h2>
+              </div>
+              <Badge variant="secondary" className="bg-emerald-200/50 text-emerald-800">{followUpStudents.length}</Badge>
+            </div>
+            <div className="flex flex-col gap-3">
+              {followUpStudents.length === 0 ? (
+                <div className="text-center p-4 border border-dashed rounded-xl text-slate-400 text-sm">Nenhuma intervenção atrativa</div>
+              ) : followUpStudents.map(renderKanbanCard)}
+            </div>
+          </div>
+
+          {/* Col 4 */}
+          <div className="flex flex-col gap-3 min-w-0">
+            <div className="flex items-center justify-between bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-slate-500" />
+                <h2 className="font-semibold gap-2 text-slate-700 text-sm">Concluídos (Alta/Laudo)</h2>
+              </div>
+              <Badge variant="secondary" className="bg-slate-200 text-slate-700">{completedStudents.length}</Badge>
+            </div>
+            <div className="flex flex-col gap-3 opacity-60 hover:opacity-100 transition-opacity">
+              {completedStudents.length === 0 ? (
+                <div className="text-center p-4 border border-dashed rounded-xl text-slate-400 text-sm">Nenhum caso concluído</div>
+              ) : completedStudents.slice(0, 5).map(renderKanbanCard)}
+              {completedStudents.length > 5 && (
+                <div className="text-center text-xs text-muted-foreground pt-2 font-medium">+{completedStudents.length - 5} casos ocultos</div>
+              )}
+            </div>
+          </div>
+
+        </div>
       </div>
     </Layout>
   );
