@@ -1,5 +1,5 @@
 import { useApp } from "@/context/AppContext";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { turmas, PsychAssessment, PSYCH_CLASSIFICATIONS, PEI_OPTIONS, getFamilyContactStatusLabel, FamilyContact, StudentDocument } from "@/data/mockData";
 import Layout from "@/components/Layout";
@@ -13,8 +13,9 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Clock, BookOpen, Brain, Phone, FileText, Upload, Eye, ShieldAlert, CheckCircle2, UserPlus, ArrowRight } from "lucide-react";
+import { Clock, BookOpen, Brain, Phone, FileText, Upload, Eye, ShieldAlert, CheckCircle2, UserPlus, ArrowRight, ArrowLeft } from "lucide-react";
 
 const CONCEPT_RISK_COLOR: Record<string, string> = {
   "Defasada": "hsl(0, 72%, 51%)", "Defasado": "hsl(0, 72%, 51%)", "Insuficiente": "hsl(0, 72%, 51%)",
@@ -23,13 +24,17 @@ const CONCEPT_RISK_COLOR: Record<string, string> = {
   "Excelente": "hsl(142, 71%, 45%)",
 };
 
+const hasMultiIntervention = (s: { interventions: { actionCategory: string }[] }) =>
+  s.interventions.some(i => ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory));
+
 export default function PsychStudentDetail() {
   const { studentId } = useParams();
+  const navigate = useNavigate();
   const { students, setStudents } = useApp();
   const student = students.find((s) => s.id === studentId);
   const [showForm, setShowForm] = useState(false);
 
-  const isCriticalCase = studentId === "s1";
+  const isCriticalCase = Boolean(student?.criticalAlert ?? studentId === "s1");
   const [crisisResolved, setCrisisResolved] = useState(false);
   const [crisisNote, setCrisisNote] = useState("");
   const [crisisResolvedDate, setCrisisResolvedDate] = useState("");
@@ -45,11 +50,14 @@ export default function PsychStudentDetail() {
     observacao: "",
     possuiPEI: "",
   });
+  const [uploadDocCategory, setUploadDocCategory] = useState<"laudo" | "pei" | "outro">("outro");
+  const [openPedagogicalModal, setOpenPedagogicalModal] = useState(false);
 
   if (!student) return <Layout><p>Aluno não encontrado.</p></Layout>;
 
   const turma = turmas.find((t) => t.id === student.turmaId);
   const lastAssessment = student.assessments[student.assessments.length - 1];
+  const isReferred = student.psychReferral || hasMultiIntervention(student);
 
   const handleSave = () => {
     if (!form.tipo || !form.classificacao || !form.necessitaAcompanhamento || !form.possuiPEI) {
@@ -149,11 +157,12 @@ export default function PsychStudentDetail() {
   const handleDocUpload = () => {
     const newDoc: StudentDocument = {
       id: `doc${Date.now()}`,
-      name: `Documento_${Date.now()}.pdf`,
+      name: uploadDocCategory === "laudo" ? "Laudo.pdf" : uploadDocCategory === "pei" ? "PEI.pdf" : `Documento_${Date.now()}.pdf`,
       type: "pdf",
       date: new Date().toISOString().split("T")[0],
       responsavel: "Dra. Fernanda Costa",
       url: "#",
+      docCategory: uploadDocCategory,
     };
     setStudents((prev) =>
       prev.map((s) => s.id === studentId ? { ...s, documents: [...s.documents, newDoc] } : s)
@@ -181,16 +190,187 @@ export default function PsychStudentDetail() {
     toast({ title: "Caso Assumido", description: `O caso foi atribuído à ${responsavel}` });
   };
 
+  const updateMedicacaoExterno = (updates: { medicacao?: string; acompanhamentoExterno?: string }) => {
+    setStudents((prev) =>
+      prev.map((s) => (s.id !== studentId ? s : { ...s, ...updates }))
+    );
+  };
+
   return (
     <Layout>
       <div className="space-y-6 max-w-3xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">{student.name}</h1>
-            <p className="text-muted-foreground text-sm">{turma?.name} • Mat: {student.matricula}</p>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate("/psicologia")}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">{student.name}</h1>
+              <p className="text-muted-foreground text-sm">{turma?.name} • Mat: {student.matricula}</p>
+            </div>
           </div>
           <RiskBadge level={student.riskLevel} />
         </div>
+
+        {!isReferred && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            <p className="font-medium">Este aluno não consta na fila de encaminhamentos da equipe multidisciplinar.</p>
+            <p className="text-amber-700/90 mt-1">Você pode consultar as avaliações pedagógicas e a linha do tempo em modo leitura.</p>
+          </div>
+        )}
+
+        {lastAssessment && (
+          <Card className="border-blue-200 bg-blue-50/50">
+            <CardHeader className="pb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <BookOpen className="h-4 w-4" /> Relato do professor para a equipe
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">{lastAssessment.date}</p>
+                </div>
+                <Button variant="outline" size="sm" className="w-fit gap-1.5" onClick={() => setOpenPedagogicalModal(true)}>
+                  <Eye className="h-3.5 w-3.5" /> Ver avaliação pedagógica
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {lastAssessment.observacaoProfessor && (
+                <p className="text-slate-700 italic">&quot;{lastAssessment.observacaoProfessor}&quot;</p>
+              )}
+              <p><span className="text-muted-foreground">Dificuldade percebida:</span>{" "}
+                <Badge variant={lastAssessment.dificuldadePercebida ? "destructive" : "secondary"} className="text-xs">
+                  {lastAssessment.dificuldadePercebida ? "Sim" : "Não"}
+                </Badge>
+              </p>
+              {lastAssessment.sintomasIdentificados && lastAssessment.sintomasIdentificados.length > 0 && (
+                <p className="text-slate-600">
+                  <span className="font-medium text-slate-700">Sintomas citados:</span>{" "}
+                  {lastAssessment.sintomasIdentificados.slice(0, 3).join("; ")}
+                  {lastAssessment.sintomasIdentificados.length > 3 && " …"}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Modal: Avaliação Pedagógica completa */}
+        <Dialog open={openPedagogicalModal} onOpenChange={setOpenPedagogicalModal}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+            <DialogHeader className="p-6 pb-4 border-b shrink-0">
+              <DialogTitle className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5" /> Avaliação Pedagógica
+              </DialogTitle>
+              {lastAssessment && <p className="text-xs text-muted-foreground">{lastAssessment.date}</p>}
+            </DialogHeader>
+            <div className="overflow-y-auto p-6 space-y-3 text-sm">
+              {lastAssessment ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Conceito Geral</span>
+                        <span className="w-fit font-bold rounded px-2 py-0.5 text-xs bg-slate-200 text-slate-700">{lastAssessment.conceitoGeral}</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Avalie o aluno globalmente na comunidade escolar: assiduidade, capricho/organização (mochila, caderno, farda), disciplina geral e interação com colegas/professor.</p>
+                    </div>
+                    <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Leitura</span>
+                        <span className={`w-fit font-bold rounded px-2 py-0.5 text-xs ${CONCEPT_RISK_COLOR[lastAssessment.leitura] === "hsl(0, 72%, 51%)" ? "bg-red-50 text-red-600" : CONCEPT_RISK_COLOR[lastAssessment.leitura] === "hsl(45, 93%, 47%)" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{lastAssessment.leitura}</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Lê enunciados com autonomia pro ano escolar? A velocidade e fluência estão de acordo com o esperado (7-11 anos) ou há silabação excessiva?</p>
+                    </div>
+                    <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Escrita</span>
+                        <span className={`w-fit font-bold rounded px-2 py-0.5 text-xs ${CONCEPT_RISK_COLOR[lastAssessment.escrita] === "hsl(0, 72%, 51%)" ? "bg-red-50 text-red-600" : CONCEPT_RISK_COLOR[lastAssessment.escrita] === "hsl(45, 93%, 47%)" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{lastAssessment.escrita}</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Consegue formular frases e copiá-las do quadro no tempo hábil? Avalie erros ortográficos graves (trocas p/b, f/v não esperadas para a idade).</p>
+                    </div>
+                    <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Matemática</span>
+                        <span className={`w-fit font-bold rounded px-2 py-0.5 text-xs ${CONCEPT_RISK_COLOR[lastAssessment.matematica] === "hsl(0, 72%, 51%)" ? "bg-red-50 text-red-600" : CONCEPT_RISK_COLOR[lastAssessment.matematica] === "hsl(45, 93%, 47%)" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{lastAssessment.matematica}</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">O aluno compreende o raciocínio das 4 operações adequadas à sua idade? Possui dificuldade extrema em montar/armar contas simples?</p>
+                    </div>
+                    <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Atenção</span>
+                        <span className={`w-fit font-bold rounded px-2 py-0.5 text-xs ${CONCEPT_RISK_COLOR[lastAssessment.atencao] === "hsl(0, 72%, 51%)" ? "bg-red-50 text-red-600" : CONCEPT_RISK_COLOR[lastAssessment.atencao] === "hsl(45, 93%, 47%)" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{lastAssessment.atencao}</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Foco em atividades da lousa ou silenciosas: O aluno dispersa muito rápido? Esquece instruções de 5 min atrás sistematicamente?</p>
+                    </div>
+                    <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Comportamento</span>
+                        <span className={`w-fit font-bold rounded px-2 py-0.5 text-xs ${CONCEPT_RISK_COLOR[lastAssessment.comportamento] === "hsl(0, 72%, 51%)" ? "bg-red-50 text-red-600" : CONCEPT_RISK_COLOR[lastAssessment.comportamento] === "hsl(45, 93%, 47%)" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{lastAssessment.comportamento}</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Apresenta impulsividade recorrente, agressividade (física/verbal), ou resistência forte a mudar rotinas e a ser contrariado?</p>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Dificuldade percebida:</span>{" "}
+                    <Badge variant={lastAssessment.dificuldadePercebida ? "destructive" : "secondary"} className="text-xs">
+                      {lastAssessment.dificuldadePercebida ? "Sim" : "Não"}
+                    </Badge>
+                  </div>
+                  {lastAssessment.sintomasIdentificados && lastAssessment.sintomasIdentificados.length > 0 && (
+                    <div className="bg-red-50/50 rounded-lg p-3 space-y-3 text-sm border border-red-100">
+                      <div>
+                        <p className="text-xs font-bold text-red-800 bg-red-100/50 inline-block px-2 py-0.5 rounded">Manifestações e Sintomas Detectados</p>
+                        <ul className="list-disc pl-5 mt-1.5 space-y-1 text-slate-700">
+                          {lastAssessment.sintomasIdentificados.map(s => <li key={s}>{s}</li>)}
+                          {lastAssessment.outrosSintomas && <li>Outros: {lastAssessment.outrosSintomas}</li>}
+                        </ul>
+                      </div>
+                      {lastAssessment.frequenciaPorArea && Object.keys(lastAssessment.frequenciaPorArea).length > 0 && (
+                        <div className="pt-2 border-t border-red-100/60">
+                          <p className="text-xs font-bold text-red-800 mb-1">Frequência por Área Defasada</p>
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(lastAssessment.frequenciaPorArea).map(([k, v]) => (
+                              <span key={k} className="text-xs bg-white border border-red-100 px-2 py-0.5 rounded text-slate-600">
+                                <strong>{k}:</strong> {v}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {lastAssessment.acoesIniciais && lastAssessment.acoesIniciais.length > 0 && (
+                    <div className="bg-orange-50/50 rounded-lg p-3 space-y-2 text-sm border border-orange-100">
+                      <p className="text-xs font-bold text-orange-800 bg-orange-100/50 inline-block px-2 py-0.5 rounded">Plano de Ação em Execução (Professor)</p>
+                      <ul className="list-disc pl-5 mt-1 space-y-1 text-slate-700">
+                        {lastAssessment.acoesIniciais.map(a => <li key={a}>{a}</li>)}
+                        {lastAssessment.outraAcao && <li>Outras ações: {lastAssessment.outraAcao}</li>}
+                      </ul>
+                    </div>
+                  )}
+                  {lastAssessment.observacaoProfessor && (
+                    <div className="bg-blue-50/50 rounded-lg p-3 space-y-1 border border-blue-100">
+                      <p className="text-xs font-bold text-blue-800 flex items-center gap-1"><BookOpen className="h-3 w-3" /> Parecer Final do Professor</p>
+                      <p className="text-sm italic text-slate-700">{lastAssessment.observacaoProfessor}</p>
+                    </div>
+                  )}
+                  {(student.riskLevel !== "low" || lastAssessment.dificuldadePercebida) && (
+                    <div className="bg-destructive/10 p-3 rounded-lg">
+                      <p className="text-xs font-medium text-destructive mb-1">Motivo do Alerta</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {student.riskLevel === "high" && <Badge variant="destructive" className="text-xs">Alto risco</Badge>}
+                        {student.riskLevel === "medium" && <Badge variant="default" className="text-xs">Médio risco</Badge>}
+                        {lastAssessment.dificuldadePercebida && <Badge variant="outline" className="text-xs">Dificuldade percebida</Badge>}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">Nenhuma avaliação pedagógica registrada.</p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {activeMultiInt && (
           <div className={`p-4 rounded-xl border-l-4 shadow-sm mb-6 ${activeMultiInt.acceptedBy ? 'bg-indigo-50/50 border-indigo-400' : 'bg-amber-50 border-amber-400'}`}>
@@ -200,9 +380,29 @@ export default function PsychStudentDetail() {
                   {activeMultiInt.acceptedBy ? <Brain className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
                   {activeMultiInt.acceptedBy ? 'Acompanhamento Multidisciplinar' : 'Triagem Pendente (Fila Geral)'}
                 </h3>
-                <p className="text-sm text-slate-700 bg-white/80 p-3 rounded border border-slate-100 italic leading-relaxed">
-                  "{activeMultiInt.objetivo || student.psychReferralReason || "Solicitação de acompanhamento."}"
+                <p className="text-xs text-slate-600">
+                  Encaminhado em <strong>{activeMultiInt.date}</strong>
+                  {activeMultiInt.pendingUntil && (
+                    <> · Prazo: <strong>{activeMultiInt.pendingUntil}</strong> (48h úteis para primeira escuta)</>
+                  )}
                 </p>
+                <p className="text-sm text-slate-700 bg-white/80 p-3 rounded border border-slate-100 italic leading-relaxed">
+                  &quot;{activeMultiInt.objetivo || student.psychReferralReason || "Solicitação de acompanhamento."}&quot;
+                </p>
+                {activeMultiInt.updates && activeMultiInt.updates.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-slate-200">
+                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Andamento (coordenação)</p>
+                    <ul className="space-y-2 text-sm text-slate-700">
+                      {activeMultiInt.updates.map((u) => (
+                        <li key={u.id} className="flex gap-2 bg-white/80 p-2 rounded border border-slate-100">
+                          <span className="text-xs text-muted-foreground shrink-0">{u.date} {u.time}</span>
+                          <span className="text-xs text-slate-500 shrink-0">{u.author}:</span>
+                          <span className="flex-1">{u.content}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
 
               <div className="sm:min-w-[200px] flex flex-col gap-2 bg-white p-3 rounded border shadow-sm self-stretch justify-center items-center text-center">
@@ -334,6 +534,36 @@ export default function PsychStudentDetail() {
           </Card>
         )}
 
+        {/* Acompanhamento externo e medicação */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Brain className="h-4 w-4" /> Acompanhamento externo e medicação
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Medicação em uso</Label>
+              <Input
+                placeholder="Ex.: Metilfenidato 10mg; nenhuma; em avaliação..."
+                value={student.medicacao ?? ""}
+                onChange={(e) => updateMedicacaoExterno({ medicacao: e.target.value || undefined })}
+                className="bg-white"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Acompanhamento clínico/terapêutico externo</Label>
+              <Textarea
+                placeholder="Ex.: CAPS Infantil 2x/semana; terapia particular; nenhum..."
+                value={student.acompanhamentoExterno ?? ""}
+                onChange={(e) => updateMedicacaoExterno({ acompanhamentoExterno: e.target.value || undefined })}
+                rows={2}
+                className="bg-white"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Family Contact Summary */}
         {student.familyContact && (
           <Card>
@@ -388,11 +618,8 @@ export default function PsychStudentDetail() {
         )}
 
         {/* Tabs */}
-        <Tabs defaultValue="pedagogica" className="w-full">
-          <TabsList className="w-full grid grid-cols-3">
-            <TabsTrigger value="pedagogica" className="text-xs sm:text-sm gap-1">
-              <BookOpen className="h-3.5 w-3.5 hidden sm:inline" /> Av. Pedagógica
-            </TabsTrigger>
+        <Tabs defaultValue="psicologica" className="w-full">
+          <TabsList className="w-full grid grid-cols-2">
             <TabsTrigger value="psicologica" className="text-xs sm:text-sm gap-1">
               <Brain className="h-3.5 w-3.5 hidden sm:inline" /> Av. Psicopedagógicas
             </TabsTrigger>
@@ -401,131 +628,7 @@ export default function PsychStudentDetail() {
             </TabsTrigger>
           </TabsList>
 
-          {/* TAB 1: Pedagogical Assessment */}
-          <TabsContent value="pedagogica">
-            {lastAssessment ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Avaliação Pedagógica</CardTitle>
-                  <p className="text-xs text-muted-foreground">{lastAssessment.date}</p>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 mb-6">
-
-                    <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Conceito Geral</span>
-                        <span className="w-fit font-bold rounded px-2 py-0.5 text-xs bg-slate-200 text-slate-700">{lastAssessment.conceitoGeral}</span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Avalie o aluno globalmente na comunidade escolar: assiduidade, capricho/organização (mochila, caderno, farda), disciplina geral e interação com colegas/professor.</p>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Leitura</span>
-                        <span className={`w-fit font-bold rounded px-2 py-0.5 text-xs ${CONCEPT_RISK_COLOR[lastAssessment.leitura] === "hsl(0, 72%, 51%)" ? "bg-red-50 text-red-600" : CONCEPT_RISK_COLOR[lastAssessment.leitura] === "hsl(45, 93%, 47%)" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{lastAssessment.leitura}</span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Lê enunciados com autonomia pro ano escolar? A velocidade e fluência estão de acordo com o esperado (7-11 anos) ou há silabação excessiva?</p>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Escrita</span>
-                        <span className={`w-fit font-bold rounded px-2 py-0.5 text-xs ${CONCEPT_RISK_COLOR[lastAssessment.escrita] === "hsl(0, 72%, 51%)" ? "bg-red-50 text-red-600" : CONCEPT_RISK_COLOR[lastAssessment.escrita] === "hsl(45, 93%, 47%)" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{lastAssessment.escrita}</span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Consegue formular frases e copiá-las do quadro no tempo hábil? Avalie erros ortográficos graves (trocas p/b, f/v não esperadas para a idade).</p>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Matemática</span>
-                        <span className={`w-fit font-bold rounded px-2 py-0.5 text-xs ${CONCEPT_RISK_COLOR[lastAssessment.matematica] === "hsl(0, 72%, 51%)" ? "bg-red-50 text-red-600" : CONCEPT_RISK_COLOR[lastAssessment.matematica] === "hsl(45, 93%, 47%)" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{lastAssessment.matematica}</span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">O aluno compreende o raciocínio das 4 operações adequadas à sua idade? Possui dificuldade extrema em montar/armar contas simples?</p>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Atenção</span>
-                        <span className={`w-fit font-bold rounded px-2 py-0.5 text-xs ${CONCEPT_RISK_COLOR[lastAssessment.atencao] === "hsl(0, 72%, 51%)" ? "bg-red-50 text-red-600" : CONCEPT_RISK_COLOR[lastAssessment.atencao] === "hsl(45, 93%, 47%)" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{lastAssessment.atencao}</span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Foco em atividades da lousa ou silenciosas: O aluno dispersa muito rápido? Esquece instruções de 5 min atrás sistematicamente?</p>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Comportamento</span>
-                        <span className={`w-fit font-bold rounded px-2 py-0.5 text-xs ${CONCEPT_RISK_COLOR[lastAssessment.comportamento] === "hsl(0, 72%, 51%)" ? "bg-red-50 text-red-600" : CONCEPT_RISK_COLOR[lastAssessment.comportamento] === "hsl(45, 93%, 47%)" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{lastAssessment.comportamento}</span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Apresenta impulsividade recorrente, agressividade (física/verbal), ou resistência forte a mudar rotinas e a ser contrariado?</p>
-                    </div>
-
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Dificuldade percebida:</span>{" "}
-                    <Badge variant={lastAssessment.dificuldadePercebida ? "destructive" : "secondary"} className="text-xs">
-                      {lastAssessment.dificuldadePercebida ? "Sim" : "Não"}
-                    </Badge>
-                  </div>
-                  {lastAssessment.sintomasIdentificados && lastAssessment.sintomasIdentificados.length > 0 && (
-                    <div className="bg-red-50/50 rounded-lg p-3 space-y-3 text-sm border border-red-100 mt-2">
-                      <div>
-                        <p className="text-xs font-bold text-red-800 bg-red-100/50 inline-block px-2 py-0.5 rounded">Manifestações e Sintomas Detectados</p>
-                        <ul className="list-disc pl-5 mt-1.5 space-y-1 text-slate-700">
-                          {lastAssessment.sintomasIdentificados.map(s => <li key={s}>{s}</li>)}
-                          {lastAssessment.outrosSintomas && <li>Outros: {lastAssessment.outrosSintomas}</li>}
-                        </ul>
-                      </div>
-                      {lastAssessment.frequenciaPorArea && Object.keys(lastAssessment.frequenciaPorArea).length > 0 && (
-                        <div className="pt-2 border-t border-red-100/60">
-                          <p className="text-xs font-bold text-red-800 mb-1">Frequência por Área Defasada</p>
-                          <div className="flex flex-wrap gap-2">
-                            {Object.entries(lastAssessment.frequenciaPorArea).map(([k, v]) => (
-                              <span key={k} className="text-xs bg-white border border-red-100 px-2 py-0.5 rounded text-slate-600">
-                                <strong>{k}:</strong> {v}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {lastAssessment.acoesIniciais && lastAssessment.acoesIniciais.length > 0 && (
-                    <div className="bg-orange-50/50 rounded-lg p-3 space-y-2 text-sm border border-orange-100">
-                      <p className="text-xs font-bold text-orange-800 bg-orange-100/50 inline-block px-2 py-0.5 rounded">Plano de Ação em Execução (Professor)</p>
-                      <ul className="list-disc pl-5 mt-1 space-y-1 text-slate-700">
-                        {lastAssessment.acoesIniciais.map(a => <li key={a}>{a}</li>)}
-                        {lastAssessment.outraAcao && <li>Outras ações: {lastAssessment.outraAcao}</li>}
-                      </ul>
-                    </div>
-                  )}
-
-                  {lastAssessment.observacaoProfessor && (
-                    <div className="bg-blue-50/50 rounded-lg p-3 space-y-1 border border-blue-100">
-                      <p className="text-xs font-bold text-blue-800 flex items-center gap-1"><BookOpen className="h-3 w-3" /> Parecer Final do Professor</p>
-                      <p className="text-sm italic text-slate-700">{lastAssessment.observacaoProfessor}</p>
-                    </div>
-                  )}
-                  {/* Alert reason */}
-                  {(student.riskLevel !== "low" || lastAssessment.dificuldadePercebida) && (
-                    <div className="bg-destructive/10 p-3 rounded-lg">
-                      <p className="text-xs font-medium text-destructive mb-1">Motivo do Alerta</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {student.riskLevel === "high" && <Badge variant="destructive" className="text-xs">Alto risco</Badge>}
-                        {student.riskLevel === "medium" && <Badge variant="default" className="text-xs">Médio risco</Badge>}
-                        {lastAssessment.dificuldadePercebida && <Badge variant="outline" className="text-xs">Dificuldade percebida</Badge>}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              <Card><CardContent className="py-6 text-center text-muted-foreground">Nenhuma avaliação pedagógica registrada.</CardContent></Card>
-            )}
-          </TabsContent>
-
-          {/* TAB 2: Psych Assessments */}
+          {/* TAB 1: Psych Assessments */}
           <TabsContent value="psicologica">
             <div className="space-y-4">
               {student.psychAssessments.length > 0 ? (
@@ -619,7 +722,7 @@ export default function PsychStudentDetail() {
             </div>
           </TabsContent>
 
-          {/* TAB 3: Timeline */}
+          {/* TAB 2: Timeline */}
           <TabsContent value="timeline">
             <Card>
               <CardHeader>
@@ -661,7 +764,7 @@ export default function PsychStudentDetail() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <FileText className="h-4 w-4" /> Documentos do Aluno
+              <FileText className="h-4 w-4" /> Documentos do Aluno (Laudo, PEI)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -671,7 +774,14 @@ export default function PsychStudentDetail() {
                   <div className="flex items-center gap-3">
                     <FileText className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <p className="text-sm font-medium">{doc.name}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium">{doc.name}</p>
+                        {doc.docCategory && (
+                          <Badge variant="outline" className="text-[10px] capitalize">
+                            {doc.docCategory === "laudo" ? "Laudo" : doc.docCategory === "pei" ? "PEI" : "Outro"}
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">{doc.date} • {doc.responsavel}</p>
                     </div>
                   </div>
@@ -683,9 +793,19 @@ export default function PsychStudentDetail() {
             ) : (
               <p className="text-center text-muted-foreground text-sm py-2">Nenhum documento registrado.</p>
             )}
-            <Button variant="outline" className="w-full gap-2" onClick={handleDocUpload}>
-              <Upload className="h-4 w-4" /> Upload de Documento (Simulado)
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <Select value={uploadDocCategory} onValueChange={(v) => setUploadDocCategory(v as "laudo" | "pei" | "outro")}>
+                <SelectTrigger className="w-full sm:w-36 bg-white"><SelectValue placeholder="Tipo" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="laudo">Laudo</SelectItem>
+                  <SelectItem value="pei">PEI</SelectItem>
+                  <SelectItem value="outro">Outro</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" className="flex-1 gap-2" onClick={handleDocUpload}>
+                <Upload className="h-4 w-4" /> Upload (Simulado)
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

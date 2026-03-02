@@ -32,6 +32,7 @@ export interface StudentDocument {
   date: string;
   responsavel: string;
   url: string; // mock URL
+  docCategory?: "laudo" | "pei" | "outro"; // Laudo, PEI ou outro (para filtro na visão Psicologia)
 }
 
 export interface Student {
@@ -49,6 +50,12 @@ export interface Student {
   timeline: TimelineEvent[];
   familyContact?: FamilyContact;
   documents: StudentDocument[];
+  /** Indica encaminhamento por Alerta Crítico (OC-1) para priorização no painel Psicologia */
+  criticalAlert?: boolean;
+  /** Medicação em uso (registro da equipe multidisciplinar) */
+  medicacao?: string;
+  /** Acompanhamento clínico/terapêutico externo (ex.: rede de saúde, clínica) */
+  acompanhamentoExterno?: string;
 }
 
 export interface Assessment {
@@ -205,6 +212,7 @@ function generateStudents(turmaId: string, count: number, startIdx: number): Stu
       risk = "high";
       hasPsych = true;
     }
+    const isCriticalAlert = id === "s1"; // Encaminhamento crítico (OC-1) para painel Psicologia
 
     const levelByRisk = (r: RiskLevel, bim: number) => {
       // Simulate progression over bimesters
@@ -355,8 +363,9 @@ function generateStudents(turmaId: string, count: number, startIdx: number): Stu
       timeline,
       familyContact,
       documents: hasPsych && risk === "high" ? [
-        { id: `doc${id}`, name: "Laudo_Neuropsicologico.pdf", type: "pdf" as const, date: "2025-02-15", responsavel: "Dra. Fernanda Costa", url: "#" },
+        { id: `doc${id}`, name: "Laudo_Neuropsicologico.pdf", type: "pdf" as const, date: "2025-02-15", responsavel: "Dra. Fernanda Costa", url: "#", docCategory: "laudo" as const },
       ] : [],
+      criticalAlert: isCriticalAlert,
     };
   });
 }
@@ -399,6 +408,58 @@ if (s7) {
       }
     ]
   }];
+}
+
+// Painel /psicologia: aluno em "Em Avaliação Inicial" (caso assumido, ainda sem avaliação registrada)
+const s2 = initialStudents.find((s) => s.id === "s2");
+if (s2) {
+  s2.psychReferral = true;
+  s2.psychAssessments = []; // Sem avaliação ainda → getPsychStatus "pendente" → coluna Em Avaliação Inicial
+  s2.riskLevel = "medium";
+  s2.interventions = [{
+    id: "ints2",
+    date: "2025-02-20",
+    actionCategory: "Acionar Psicologia",
+    actionTool: "Avaliação Inicial",
+    objetivo: "Avaliar queixas de desatenção e dificuldade de organização em sala.",
+    responsavel: "Coord. Marcos Lima",
+    status: "Em_Acompanhamento",
+    pendingUntil: "2025-04-15",
+    acceptedBy: "Dra. Fernanda (Psicologia)", // Filtro "Meus Casos" Psicologia
+  }];
+}
+
+// Painel /psicologia: caso com Dra. Beatriz para filtro "Meus Casos" Psicopedagogia
+const s3 = initialStudents.find((s) => s.id === "s3");
+if (s3) {
+  s3.psychReferral = true;
+  s3.riskLevel = "medium";
+  s3.interventions = [{
+    id: "ints3",
+    date: "2025-02-01",
+    actionCategory: "Acionar Psicopedagogia",
+    actionTool: "Avaliação Cognitiva Básica",
+    objetivo: "Investigar dificuldades de leitura e escrita relatadas pelo professor.",
+    responsavel: "Coord. Marcos Lima",
+    status: "Em_Acompanhamento",
+    pendingUntil: "2025-04-30",
+    acceptedBy: "Dra. Beatriz (Psicopedagogia)", // Filtro "Meus Casos" Psicopedagogia
+  }];
+  // Garantir que está em Intervenções Pontuais (já tem avaliação e necessita acompanhamento)
+  if (s3.psychAssessments.length === 0) {
+    s3.psychAssessments = [{
+      id: "pa-s3",
+      date: "2025-02-15",
+      tipo: "Inicial",
+      classificacao: "Suspeita",
+      necessitaAcompanhamento: true,
+      observacao: "Aluno em processo de avaliação psicopedagógica. Encaminhado para intervenções pontuais.",
+      possuiPEI: "Não",
+      responsavel: "Dra. Beatriz Souza",
+    }];
+  } else {
+    (s3.psychAssessments[s3.psychAssessments.length - 1] as PsychAssessment).necessitaAcompanhamento = true;
+  }
 }
 
 const s5 = initialStudents.find((s) => s.id === "s5");
