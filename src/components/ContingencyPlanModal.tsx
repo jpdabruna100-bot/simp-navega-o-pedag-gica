@@ -239,7 +239,7 @@ export function ContingencyPlanModal({
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {newActionDeadline ? format(newActionDeadline, "PPP", { locale: ptBR }) : <span>Selecione uma data...</span>}
+                  {newActionDeadline ? format(newActionDeadline, "dd/MM/yyyy") : <span>Selecione uma data...</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">

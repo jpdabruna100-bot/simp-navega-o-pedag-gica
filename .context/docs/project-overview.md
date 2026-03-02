@@ -75,6 +75,7 @@ Tipos e estruturas de dados estão em `src/data/mockData.ts` (interfaces `Studen
 - **Dados em memória:** estado global em React (`AppContext`), alimentado em `src/data/mockData.ts`.
 - **Supabase:** cliente e tipos em `src/integrations/supabase/`, como infraestrutura preparada (não em uso para o fluxo de persistência no momento das validações UX).
 - Funcionalidades modernas B2B como Dashboards analíticos, Kanban de Triagem de Alunos e Redirecionamentos via Query/URL (filtros de SLA e urgência) foram criados estaticamente local.
+- Interface localizada em pt-BR; datas em formato DD/MM/YYYY em toda a aplicação.
 
 ---
 
@@ -82,7 +83,15 @@ Tipos e estruturas de dados estão em `src/data/mockData.ts` (interfaces `Studen
 
 - **Stack:** Vite, React 18, TypeScript, shadcn/ui, Tailwind, React Router, TanStack Query.
 - **Pontos de entrada:** `src/App.tsx` (rotas), `src/context/AppContext.tsx` (estado global), `src/data/mockData.ts` (dados da UX).
-- **Estrutura:** `src/pages/`, `src/components/`, `src/context/`.
+- **Estrutura:** `src/pages/`, `src/components/`, `src/context/`, `src/lib/`.
+- **Utilitários:** `src/lib/utils.ts` — `formatBRDate()` para exibir datas em padrão brasileiro (DD/MM/YYYY).
+
+### Padrões de localização (pt-BR)
+
+- **Datas na interface:** Todas as datas exibidas seguem o formato brasileiro **DD/MM/YYYY**.
+- **Utilitário:** `formatBRDate(dateStr)` em `@/lib/utils` converte strings ISO (YYYY-MM-DD) para exibição.
+- **Seleção de data:** Uso de Calendar (react-day-picker) com `locale={ptBR}` e exibição em DD/MM/yyyy.
+- **Armazenamento:** Valores em payload/API permanecem em ISO (YYYY-MM-DD).
 
 ---
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ClipboardList, Clock, CheckCircle2, CircleDashed, Plus, AlertCircle } from "lucide-react";
 import type { Intervention } from "@/data/mockData";
+import { formatBRDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,13 +18,6 @@ const isOverdue = (dateStr?: string) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Zera a hora para focar só no dia
     return pendingDate < today;
-};
-
-const formatBRDate = (dateStr?: string) => {
-    if (!dateStr) return "";
-    const [y, m, d] = dateStr.split('-');
-    if (y && m && d) return `${d}/${m}/${y}`;
-    return dateStr;
 };
 
 const statusColor = (s: string) => {

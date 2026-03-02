@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { Clock, NotebookPen, FileText, CheckCircle2, Eye, ClipboardList, AlertCircle } from "lucide-react";
 import { InterventionDetailView } from "@/components/InterventionDetailView";
 import { Textarea } from "@/components/ui/textarea";
+import { formatBRDate } from "@/lib/utils";
 
 const isOverdue = (dateStr?: string) => {
     if (!dateStr) return false;
@@ -18,13 +19,6 @@ const isOverdue = (dateStr?: string) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Zera a hora para focar só no dia
     return pendingDate < today;
-};
-
-const formatBRDate = (dateStr?: string) => {
-    if (!dateStr) return "";
-    const [y, m, d] = dateStr.split('-');
-    if (y && m && d) return `${d}/${m}/${y}`;
-    return dateStr;
 };
 
 export default function InterventionManagement() {

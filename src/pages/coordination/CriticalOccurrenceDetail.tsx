@@ -1,4 +1,5 @@
 import Layout from "@/components/Layout";
+import { formatBRDate } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, User, Calendar, MessageSquare, PhoneCall, Brain, Scale, CheckCircle2, FileText } from "lucide-react";
@@ -173,7 +174,7 @@ export default function CriticalOccurrenceDetail() {
                                     <div className="bg-white p-3 rounded-md border border-slate-100 shadow-sm">
                                         <span className="text-xs text-slate-500 font-semibold uppercase flex items-center gap-1 mb-1"><Calendar className="w-3 h-3" /> Data e Relator</span>
                                         <span className="font-bold text-slate-800 block leading-tight">{occurrence.teacher}</span>
-                                        <span className="text-xs text-slate-500">{occurrence.date}</span>
+                                        <span className="text-xs text-slate-500">{formatBRDate(occurrence.date)}</span>
                                     </div>
                                 </div>
 

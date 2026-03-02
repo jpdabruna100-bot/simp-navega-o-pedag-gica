@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useApp } from "@/context/AppContext";
+import { formatBRDate } from "@/lib/utils";
 import { useParams } from "react-router-dom";
 import { turmas, type Intervention } from "@/data/mockData";
 import Layout from "@/components/Layout";
@@ -179,7 +180,7 @@ export default function CoordStudentDetail() {
       const data = payload[0].payload;
       return (
         <div className="rounded-lg border bg-background px-3 py-2 shadow-xl text-xs space-y-1 min-w-[150px]">
-          <p className="font-bold border-b pb-1 mb-1">{data.date} {data.bimestreLabel ? `(${data.bimestreLabel})` : ""}</p>
+          <p className="font-bold border-b pb-1 mb-1">{formatBRDate(data.date)} {data.bimestreLabel ? `(${data.bimestreLabel})` : ""}</p>
           {payload.map((entry: any, index: number) => {
             const concept = data[`${entry.name}Concept`];
             if (!concept) return null;
@@ -251,7 +252,7 @@ export default function CoordStudentDetail() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Última Avaliação Pedagógica</CardTitle>
-              <p className="text-xs text-muted-foreground">{lastAssessment.date} • {lastAssessment.bimestre}º Bimestre / {lastAssessment.anoLetivo}</p>
+              <p className="text-xs text-muted-foreground">{formatBRDate(lastAssessment.date)} • {lastAssessment.bimestre}º Bimestre / {lastAssessment.anoLetivo}</p>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 mb-6">
@@ -385,6 +386,7 @@ export default function CoordStudentDetail() {
                       <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} className="stroke-border/50" />
                       <XAxis
                         dataKey="date"
+                        tickFormatter={(v) => formatBRDate(v)}
                         tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
                       />
                       <YAxis
@@ -431,10 +433,9 @@ export default function CoordStudentDetail() {
                 const lastPsych = student.psychAssessments[student.psychAssessments.length - 1];
                 return (
                   <>
-                    <p className="text-xs text-muted-foreground mb-2">Última avaliação: {lastPsych.date}</p>
+                    <p className="text-xs text-muted-foreground mb-2">Última avaliação: {formatBRDate(lastPsych.date)}</p>
                     <div><span className="text-muted-foreground">Tipo:</span> <strong>{lastPsych.tipo}</strong></div>
-                    <div><span className="text-muted-foreground">Classificação:</span> <strong>{lastPsych.classificacao}</strong></div>
-                    <div><span className="text-muted-foreground">Acompanhamento:</span> <strong>{lastPsych.necessitaAcompanhamento ? "Sim" : "Não"}</strong></div>
+                    <div><span className="text-muted-foreground">Decisão da Equipe Multidisciplinar:</span> <strong>{lastPsych.classificacao}</strong></div>
                     {lastPsych.observacao && <div><span className="text-muted-foreground">Observação:</span> <p className="mt-1">{lastPsych.observacao}</p></div>}
                   </>
                 );
@@ -457,7 +458,7 @@ export default function CoordStudentDetail() {
                   <div className="space-y-0.5">
                     <p className="font-medium text-sm">{intervention.actionCategory} • {intervention.actionTool}</p>
                     <p className="text-xs text-muted-foreground">Objetivo: {intervention.objetivo}</p>
-                    <p className="text-xs text-muted-foreground">Responsável: {intervention.responsavel} • {intervention.date}</p>
+                    <p className="text-xs text-muted-foreground">Responsável: {intervention.responsavel} • {formatBRDate(intervention.date)}</p>
                   </div>
                   <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${statusColor(intervention.status)}`}>{intervention.status}</span>
                 </div>
@@ -482,7 +483,7 @@ export default function CoordStudentDetail() {
                     <div className={`mt-1.5 w-2.5 h-2.5 rounded-full ${dotColor} flex-shrink-0`} />
                     <div>
                       <p className="text-sm">{event.description}</p>
-                      <p className="text-xs text-muted-foreground">{event.date}</p>
+                      <p className="text-xs text-muted-foreground">{formatBRDate(event.date)}</p>
                     </div>
                   </div>
                 );

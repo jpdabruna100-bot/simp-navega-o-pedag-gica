@@ -56,6 +56,14 @@ export interface Student {
   medicacao?: string;
   /** Acompanhamento clínico/terapêutico externo (ex.: rede de saúde, clínica) */
   acompanhamentoExterno?: string;
+  /** Potencialidades (ZDR) — equipe multidisciplinar / OQE */
+  potencialidades?: string;
+  /** Objetivos de desenvolvimento (ZDP) */
+  zdp?: string;
+  /** PEI/PDI elaborado no sistema */
+  pei?: { objetivos: string; estrategias: string; responsavel: string; dataRevisao: string; dataRegistro?: string };
+  /** PEI recomendado pela equipe, aguardando conclusão pelo professor (limpa quando pei for preenchido) */
+  peiRecomendado?: { dataRecomendacao: string; prazo: string; areasAtencao: string[]; sugestoes?: string };
 }
 
 export interface Assessment {
@@ -87,11 +95,20 @@ export interface PsychAssessment {
   id: string;
   date: string;
   tipo: "Inicial" | "Reavaliação" | "Acompanhamento";
-  classificacao: string;
-  necessitaAcompanhamento: boolean;
+  classificacao: string; // Decisão da Equipe Multidisciplinar (valor de DECISAO_EQUIPE_OPTIONS)
+  necessitaAcompanhamento: boolean; // derivado: "Não necessita acompanhamento" → false
   observacao: string;
   possuiPEI?: "Sim" | "Não" | "Em elaboração";
   responsavel?: string;
+  potencialidades?: string;
+  zdp?: string;
+  queixaDescritiva?: string;
+  pei?: { objetivos: string; estrategias: string; responsavel: string; dataRevisao: string };
+  /** Recomendação de elaboração de PEI nesta avaliação */
+  recomendaElaboracaoPEI?: boolean;
+  areasAtencaoPEI?: string[];
+  sugestoesPEI?: string;
+  prazoPEI?: string;
 }
 
 export interface InterventionUpdate {
@@ -123,7 +140,7 @@ export interface Intervention {
 export interface TimelineEvent {
   id: string;
   date: string;
-  type: "assessment" | "psych" | "intervention" | "referral" | "family_contact";
+  type: "assessment" | "psych" | "intervention" | "referral" | "family_contact" | "potencialidades_registradas" | "pei_atualizado";
   description: string;
 }
 
@@ -378,6 +395,25 @@ export const initialStudents: Student[] = [
   ...generateStudents("t5", 10, 41),
 ];
 
+// s1: PEI já registrado (para testar bloco "PEI registrado" no modal de avaliação psicopedagógica)
+const s1Override = initialStudents.find((s) => s.id === "s1");
+if (s1Override) {
+  s1Override.potencialidades = "Boa interação com colegas; interesse por desenhos e histórias orais.";
+  s1Override.zdp = "Ampliar tempo de atenção em leitura compartilhada.";
+  s1Override.pei = {
+    objetivos: "Fortalecer atenção em leitura e escrita; organizar rotina de tarefas.",
+    estrategias: "Leitura compartilhada; pausas entre tarefas; checklist diário.",
+    responsavel: "Prof. regente + AEE",
+    dataRevisao: "2025-06-15",
+    dataRegistro: "2025-02-10",
+  };
+  const lastPa = s1Override.psychAssessments[s1Override.psychAssessments.length - 1] as PsychAssessment | undefined;
+  if (lastPa) {
+    lastPa.pei = s1Override.pei;
+    lastPa.possuiPEI = "Sim";
+  }
+}
+
 // Alunos com plano já aplicado (determinístico para testar "Ver plano estratégico")
 const s7 = initialStudents.find((s) => s.id === "s7");
 if (s7) {
@@ -526,6 +562,13 @@ if (s8) {
     pendingUntil: "2025-02-28",
     resolutionAta: "Ciclo encerrado em 2025-02-28. Aluno apresentou evolução satisfatória no reforço. Recomenda-se acompanhamento contínuo nas próximas avaliações.",
   }];
+  // PEI recomendado pela equipe, aguardando conclusão pelo professor (testar bloco "aguardando conclusão")
+  s8.peiRecomendado = {
+    dataRecomendacao: "2025-02-18",
+    prazo: "2025-04-30",
+    areasAtencao: ["Leitura", "Atenção"],
+    sugestoes: "Priorizar objetivos curtos em leitura; uso de material com apoio visual.",
+  };
 }
 
 // OBRIGATÓRIO: Forçar o caso do aluno s28 (Pedro Santos) para demonstrar a evolução de 6 pontos de avaliação
@@ -634,6 +677,25 @@ export const PSYCH_CLASSIFICATIONS = [
   "Observação",
   "Suspeita",
   "Neurodivergente",
+] as const;
+
+/** Decisão da Equipe Multidisciplinar — único campo sobre continuidade do acompanhamento */
+export const DECISAO_EQUIPE_OPTIONS = [
+  "Em escuta",
+  "Em acompanhamento",
+  "Encaminhamento externo em curso",
+  "Não necessita acompanhamento",
+] as const;
+
+/** Áreas de atenção para orientar o professor na elaboração do PEI */
+export const AREAS_ATENCAO_PEI = [
+  "Leitura",
+  "Escrita",
+  "Matemática",
+  "Atenção",
+  "Comportamento",
+  "Interação social",
+  "Autonomia / organização",
 ] as const;
 
 export const PEI_OPTIONS = ["Sim", "Não", "Em elaboração"] as const;

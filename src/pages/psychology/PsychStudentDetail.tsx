@@ -1,7 +1,8 @@
 import { useApp } from "@/context/AppContext";
+import { formatBRDate } from "@/lib/utils";
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { turmas, PsychAssessment, PSYCH_CLASSIFICATIONS, PEI_OPTIONS, getFamilyContactStatusLabel, FamilyContact, StudentDocument } from "@/data/mockData";
+import { turmas, PsychAssessment, DECISAO_EQUIPE_OPTIONS, AREAS_ATENCAO_PEI, FamilyContact, StudentDocument } from "@/data/mockData";
 import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Clock, BookOpen, Brain, Phone, FileText, Upload, Eye, ShieldAlert, CheckCircle2, UserPlus, ArrowRight, ArrowLeft } from "lucide-react";
+import { Clock, BookOpen, Brain, Phone, FileText, Upload, Eye, ShieldAlert, CheckCircle2, UserPlus, ArrowRight, ArrowLeft, MessageSquare, PhoneCall } from "lucide-react";
 
 const CONCEPT_RISK_COLOR: Record<string, string> = {
   "Defasada": "hsl(0, 72%, 51%)", "Defasado": "hsl(0, 72%, 51%)", "Insuficiente": "hsl(0, 72%, 51%)",
@@ -45,13 +46,22 @@ export default function PsychStudentDetail() {
 
   const [form, setForm] = useState({
     tipo: "",
-    classificacao: "",
-    necessitaAcompanhamento: "",
+    potencialidades: "",
+    zdp: "",
+    queixaDescritiva: "",
+    decisaoEquipe: "",
+    recomendaPEI: "",
+    areasAtencaoPEI: [] as string[],
+    sugestoesPEI: "",
+    prazoPEI: "",
+    peiObjetivos: "",
+    peiEstrategias: "",
+    peiResponsavel: "",
+    peiDataRevisao: "",
     observacao: "",
-    possuiPEI: "",
   });
-  const [uploadDocCategory, setUploadDocCategory] = useState<"laudo" | "pei" | "outro">("outro");
   const [openPedagogicalModal, setOpenPedagogicalModal] = useState(false);
+  const [showFamilyContactModal, setShowFamilyContactModal] = useState(false);
 
   if (!student) return <Layout><p>Aluno não encontrado.</p></Layout>;
 
@@ -59,21 +69,47 @@ export default function PsychStudentDetail() {
   const lastAssessment = student.assessments[student.assessments.length - 1];
   const isReferred = student.psychReferral || hasMultiIntervention(student);
 
+  const temPEI = !!student.pei;
+  const peiRecomendadoPendente = !student.pei && !!student.peiRecomendado;
+
   const handleSave = () => {
-    if (!form.tipo || !form.classificacao || !form.necessitaAcompanhamento || !form.possuiPEI) {
+    if (!form.potencialidades?.trim()) {
+      toast({ title: "Preencha as potencialidades (obrigatório)", variant: "destructive" });
+      return;
+    }
+    if (!form.tipo || !form.decisaoEquipe) {
       toast({ title: "Preencha todos os campos obrigatórios", variant: "destructive" });
       return;
     }
+    if (!temPEI && !peiRecomendadoPendente && form.recomendaPEI === "Sim" && (!form.prazoPEI || form.areasAtencaoPEI.length === 0)) {
+      toast({ title: "Se recomenda PEI, informe as áreas de atenção e o prazo.", variant: "destructive" });
+      return;
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+    const peiData = form.peiObjetivos?.trim() || form.peiEstrategias?.trim()
+      ? { objetivos: form.peiObjetivos.trim(), estrategias: form.peiEstrategias.trim(), responsavel: form.peiResponsavel.trim() || "Equipe multidisciplinar", dataRevisao: form.peiDataRevisao || today, dataRegistro: today }
+      : undefined;
+
+    const recomendaPEI = !temPEI && !peiRecomendadoPendente && form.recomendaPEI === "Sim";
 
     const newPsych: PsychAssessment = {
       id: `pa${Date.now()}`,
-      date: new Date().toISOString().split("T")[0],
-      tipo: form.tipo as any,
-      classificacao: form.classificacao,
-      necessitaAcompanhamento: form.necessitaAcompanhamento === "Sim",
+      date: today,
+      tipo: form.tipo as "Inicial" | "Reavaliação" | "Acompanhamento",
+      classificacao: form.decisaoEquipe,
+      necessitaAcompanhamento: form.decisaoEquipe !== "Não necessita acompanhamento",
       observacao: form.observacao,
-      possuiPEI: form.possuiPEI as any,
+      possuiPEI: peiData ? "Sim" : recomendaPEI ? "Em elaboração" : "Não",
       responsavel: "Dra. Fernanda Costa",
+      potencialidades: form.potencialidades.trim(),
+      zdp: form.zdp?.trim() || undefined,
+      queixaDescritiva: form.queixaDescritiva?.trim() || undefined,
+      pei: peiData,
+      recomendaElaboracaoPEI: recomendaPEI || undefined,
+      areasAtencaoPEI: recomendaPEI ? form.areasAtencaoPEI : undefined,
+      sugestoesPEI: recomendaPEI ? form.sugestoesPEI?.trim() : undefined,
+      prazoPEI: recomendaPEI ? form.prazoPEI : undefined,
     };
 
     const isInitial = form.tipo === "Inicial";
@@ -84,12 +120,17 @@ export default function PsychStudentDetail() {
 
         const newTimeline = [
           ...s.timeline,
-          { id: `tl${Date.now()}`, date: newPsych.date, type: "psych" as const, description: `Avaliação psicopedagógica (${form.tipo}) realizada` },
+          { id: `tl${Date.now()}`, date: today, type: "psych" as const, description: `Avaliação psicopedagógica (${form.tipo}) realizada` },
         ];
+        if (peiData) {
+          newTimeline.push({ id: `tl${Date.now() + 1}`, date: today, type: "pei_atualizado" as const, description: "PEI/Plano de desenvolvimento atualizado" });
+        }
+        if (recomendaPEI) {
+          newTimeline.push({ id: `tl${Date.now() + 3}`, date: today, type: "psych" as const, description: `Recomendada elaboração de PEI pela equipe (prazo: ${formatBRDate(form.prazoPEI) || "—"})` });
+        }
 
-        // Auto-create family contact task on Initial assessment
         let familyContact = s.familyContact;
-        if (isInitial && !familyContact) {
+        if (!familyContact) {
           familyContact = {
             id: `fc${Date.now()}`,
             studentId: s.id,
@@ -100,25 +141,41 @@ export default function PsychStudentDetail() {
             observacao: "",
           };
           newTimeline.push({
-            id: `tl${Date.now() + 1}`,
-            date: newPsych.date,
+            id: `tl${Date.now() + 2}`,
+            date: today,
             type: "family_contact" as const,
-            description: "Tarefa de contato com a família criada automaticamente",
+            description: "Tarefa de contato com a família criada (WhatsApp, Ligação, Notificação Agenda)",
           });
         }
 
-        return {
+        const nextStudent: typeof s = {
           ...s,
           psychAssessments: [...s.psychAssessments, newPsych],
           timeline: newTimeline,
           familyContact,
         };
+        nextStudent.potencialidades = form.potencialidades.trim();
+        if (form.zdp?.trim()) nextStudent.zdp = form.zdp.trim();
+        if (peiData) {
+          nextStudent.pei = { ...(s.pei || {}), ...peiData, dataRegistro: s.pei?.dataRegistro || today };
+          nextStudent.peiRecomendado = undefined;
+        } else if (recomendaPEI) {
+          nextStudent.peiRecomendado = {
+            dataRecomendacao: today,
+            prazo: form.prazoPEI,
+            areasAtencao: form.areasAtencaoPEI,
+            sugestoes: form.sugestoesPEI?.trim(),
+          };
+        }
+
+        return nextStudent;
       })
     );
 
     toast({ title: "Avaliação psicopedagógica salva!" });
     setShowForm(false);
-    setForm({ tipo: "", classificacao: "", necessitaAcompanhamento: "", observacao: "", possuiPEI: "" });
+    setForm({ tipo: "", potencialidades: "", zdp: "", queixaDescritiva: "", decisaoEquipe: "", recomendaPEI: "", areasAtencaoPEI: [], sugestoesPEI: "", prazoPEI: "", peiObjetivos: "", peiEstrategias: "", peiResponsavel: "", peiDataRevisao: "", observacao: "" });
+    setShowFamilyContactModal(true);
   };
 
   const updateFamilyContact = (updates: Partial<FamilyContact>) => {
@@ -132,11 +189,11 @@ export default function PsychStudentDetail() {
 
   const handleAttemptToggle = (attempt: "tentativa1" | "tentativa2" | "tentativa3", checked: boolean) => {
     const today = new Date().toISOString().split("T")[0];
+    const canal = attempt === "tentativa1" ? "WhatsApp" : attempt === "tentativa2" ? "Ligação" : "Notificação Agenda";
     updateFamilyContact({
       [attempt]: { done: checked, date: checked ? today : null },
     });
     if (checked) {
-      const num = attempt === "tentativa1" ? "1ª" : attempt === "tentativa2" ? "2ª" : "3ª";
       setStudents((prev) =>
         prev.map((s) => {
           if (s.id !== studentId) return s;
@@ -146,7 +203,7 @@ export default function PsychStudentDetail() {
               id: `tl${Date.now()}`,
               date: today,
               type: "family_contact" as const,
-              description: `${num} tentativa de contato com a família`,
+              description: `Contato com família: ${canal} realizado`,
             }],
           };
         })
@@ -157,12 +214,12 @@ export default function PsychStudentDetail() {
   const handleDocUpload = () => {
     const newDoc: StudentDocument = {
       id: `doc${Date.now()}`,
-      name: uploadDocCategory === "laudo" ? "Laudo.pdf" : uploadDocCategory === "pei" ? "PEI.pdf" : `Documento_${Date.now()}.pdf`,
+      name: "Laudo.pdf",
       type: "pdf",
       date: new Date().toISOString().split("T")[0],
       responsavel: "Dra. Fernanda Costa",
       url: "#",
-      docCategory: uploadDocCategory,
+      docCategory: "laudo",
     };
     setStudents((prev) =>
       prev.map((s) => s.id === studentId ? { ...s, documents: [...s.documents, newDoc] } : s)
@@ -227,7 +284,7 @@ export default function PsychStudentDetail() {
                   <CardTitle className="text-base flex items-center gap-2">
                     <BookOpen className="h-4 w-4" /> Relato do professor para a equipe
                   </CardTitle>
-                  <p className="text-xs text-muted-foreground">{lastAssessment.date}</p>
+                  <p className="text-xs text-muted-foreground">{formatBRDate(lastAssessment.date)}</p>
                 </div>
                 <Button variant="outline" size="sm" className="w-fit gap-1.5" onClick={() => setOpenPedagogicalModal(true)}>
                   <Eye className="h-3.5 w-3.5" /> Ver avaliação pedagógica
@@ -261,7 +318,7 @@ export default function PsychStudentDetail() {
               <DialogTitle className="flex items-center gap-2">
                 <BookOpen className="h-5 w-5" /> Avaliação Pedagógica
               </DialogTitle>
-              {lastAssessment && <p className="text-xs text-muted-foreground">{lastAssessment.date}</p>}
+              {lastAssessment && <p className="text-xs text-muted-foreground">{formatBRDate(lastAssessment.date)}</p>}
             </DialogHeader>
             <div className="overflow-y-auto p-6 space-y-3 text-sm">
               {lastAssessment ? (
@@ -381,9 +438,9 @@ export default function PsychStudentDetail() {
                   {activeMultiInt.acceptedBy ? 'Acompanhamento Multidisciplinar' : 'Triagem Pendente (Fila Geral)'}
                 </h3>
                 <p className="text-xs text-slate-600">
-                  Encaminhado em <strong>{activeMultiInt.date}</strong>
+                  Encaminhado em <strong>{formatBRDate(activeMultiInt.date)}</strong>
                   {activeMultiInt.pendingUntil && (
-                    <> · Prazo: <strong>{activeMultiInt.pendingUntil}</strong> (48h úteis para primeira escuta)</>
+                    <> · Prazo: <strong>{formatBRDate(activeMultiInt.pendingUntil)}</strong> (48h úteis para primeira escuta)</>
                   )}
                 </p>
                 <p className="text-sm text-slate-700 bg-white/80 p-3 rounded border border-slate-100 italic leading-relaxed">
@@ -395,7 +452,7 @@ export default function PsychStudentDetail() {
                     <ul className="space-y-2 text-sm text-slate-700">
                       {activeMultiInt.updates.map((u) => (
                         <li key={u.id} className="flex gap-2 bg-white/80 p-2 rounded border border-slate-100">
-                          <span className="text-xs text-muted-foreground shrink-0">{u.date} {u.time}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">{formatBRDate(u.date)} {u.time}</span>
                           <span className="text-xs text-slate-500 shrink-0">{u.author}:</span>
                           <span className="flex-1">{u.content}</span>
                         </li>
@@ -501,7 +558,7 @@ export default function PsychStudentDetail() {
                           <BookOpen className="w-4 h-4" />
                           Retorno do Professor (Pós-Crise)
                         </Label>
-                        <span className="text-xs text-blue-600/80 font-medium">{followUpEvent.date}</span>
+                        <span className="text-xs text-blue-600/80 font-medium">{formatBRDate(followUpEvent.date)}</span>
                       </div>
                       <p className="text-sm text-slate-700 bg-blue-50/50 p-3 rounded border border-blue-100 italic shadow-sm">
                         {followUpEvent.description}
@@ -564,59 +621,6 @@ export default function PsychStudentDetail() {
           </CardContent>
         </Card>
 
-        {/* Family Contact Summary */}
-        {student.familyContact && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Phone className="h-4 w-4" /> Contato com a Família
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Badge variant="outline" className="text-xs">
-                {getFamilyContactStatusLabel(student.familyContact)}
-              </Badge>
-              <div className="space-y-2">
-                {(["tentativa1", "tentativa2", "tentativa3"] as const).map((key, i) => (
-                  <div key={key} className="flex items-center gap-3">
-                    <Checkbox
-                      checked={student.familyContact![key].done}
-                      onCheckedChange={(c) => handleAttemptToggle(key, !!c)}
-                      disabled={i > 0 && !student.familyContact![`tentativa${i}` as "tentativa1" | "tentativa2" | "tentativa3"].done}
-                    />
-                    <span className="text-sm">Tentativa {i + 1}</span>
-                    {student.familyContact![key].date && (
-                      <span className="text-xs text-muted-foreground">{student.familyContact![key].date}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label className="text-sm">Houve retorno?</Label>
-                <Select
-                  value={student.familyContact.houveRetorno === true ? "Sim" : student.familyContact.houveRetorno === false ? "Não" : ""}
-                  onValueChange={(v) => updateFamilyContact({ houveRetorno: v === "Sim" ? true : v === "Não" ? false : null })}
-                >
-                  <SelectTrigger className="w-40"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Sim">Sim</SelectItem>
-                    <SelectItem value="Não">Não</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">Observação do contato</Label>
-                <Textarea
-                  value={student.familyContact.observacao}
-                  onChange={(e) => updateFamilyContact({ observacao: e.target.value })}
-                  rows={2}
-                  placeholder="Registre observações sobre o contato..."
-                />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Tabs */}
         <Tabs defaultValue="psicologica" className="w-full">
           <TabsList className="w-full grid grid-cols-2">
@@ -640,17 +644,50 @@ export default function PsychStudentDetail() {
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between">
                           <CardTitle className="text-base">{pa.tipo}</CardTitle>
-                          <span className="text-xs text-muted-foreground">{pa.date}</span>
+                          <span className="text-xs text-muted-foreground">{formatBRDate(pa.date)}</span>
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-2 text-sm">
-                        <div><span className="text-muted-foreground">Classificação:</span> <strong>{pa.classificacao}</strong></div>
-                        <div><span className="text-muted-foreground">Acompanhamento:</span>{" "}
-                          <Badge variant={pa.necessitaAcompanhamento ? "default" : "secondary"} className="text-xs">
-                            {pa.necessitaAcompanhamento ? "Sim" : "Não"}
-                          </Badge>
+                        {pa.potencialidades && (
+                          <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-3">
+                            <p className="text-xs font-semibold text-emerald-800 mb-1">Potencialidades (ZDR)</p>
+                            <p className="text-slate-700">{pa.potencialidades}</p>
+                          </div>
+                        )}
+                        {pa.zdp && (
+                          <div><span className="text-muted-foreground">Objetivos (ZDP):</span> {pa.zdp}</div>
+                        )}
+                        <div>
+                          <span className="text-muted-foreground">Decisão da Equipe Multidisciplinar:</span>{" "}
+                          <strong>{pa.classificacao}</strong>
                         </div>
-                        <div><span className="text-muted-foreground">PEI:</span> <strong>{pa.possuiPEI || "N/A"}</strong></div>
+                        {(pa.recomendaElaboracaoPEI || pa.possuiPEI) && (
+                          <div>
+                            <span className="text-muted-foreground">PEI:</span>{" "}
+                            {pa.recomendaElaboracaoPEI ? (
+                              <span className="text-amber-700 text-sm">Recomendada elaboração (prazo: {formatBRDate(pa.prazoPEI) || "—"})</span>
+                            ) : (
+                              <strong>{pa.possuiPEI || "N/A"}</strong>
+                            )}
+                            {pa.areasAtencaoPEI && pa.areasAtencaoPEI.length > 0 && (
+                              <p className="text-xs text-muted-foreground mt-0.5">Áreas: {pa.areasAtencaoPEI.join(", ")}</p>
+                            )}
+                          </div>
+                        )}
+                        {pa.queixaDescritiva && (
+                          <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3">
+                            <p className="text-xs font-semibold text-blue-800 mb-1">Queixa / Situação</p>
+                            <p className="text-slate-700 italic">&quot;{pa.queixaDescritiva}&quot;</p>
+                          </div>
+                        )}
+                        {pa.pei && (
+                          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1">
+                            <p className="text-xs font-semibold text-slate-700 mb-1">PEI / Plano de desenvolvimento</p>
+                            <p><span className="text-muted-foreground">Objetivos:</span> {pa.pei.objetivos}</p>
+                            <p><span className="text-muted-foreground">Estratégias:</span> {pa.pei.estrategias}</p>
+                            <p><span className="text-muted-foreground">Responsável:</span> {pa.pei.responsavel} · Revisão: {formatBRDate(pa.pei.dataRevisao)}</p>
+                          </div>
+                        )}
                         {pa.responsavel && <div><span className="text-muted-foreground">Responsável:</span> {pa.responsavel}</div>}
                         {pa.observacao && (
                           <div className="bg-muted/50 p-3 rounded-lg">
@@ -665,13 +702,42 @@ export default function PsychStudentDetail() {
                 <Card><CardContent className="py-6 text-center text-muted-foreground">Nenhuma avaliação psicopedagógica registrada.</CardContent></Card>
               )}
 
-              {/* New Assessment Form */}
-              {!showForm ? (
-                <Button onClick={() => setShowForm(true)} className="w-full">Nova Avaliação Psicopedagógica</Button>
-              ) : (
-                <Card>
-                  <CardHeader><CardTitle className="text-base">Nova Avaliação Psicopedagógica</CardTitle></CardHeader>
-                  <CardContent className="space-y-4">
+              {/* New Assessment Form (Modal) */}
+              <Button onClick={() => setShowForm(true)} className="w-full">Nova Avaliação Psicopedagógica</Button>
+
+              <Dialog open={showForm} onOpenChange={setShowForm}>
+                <DialogContent className="sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Nova Avaliação Psicopedagógica</DialogTitle>
+                    <p className="text-xs text-muted-foreground">OQE e Psicologia Escolar Crítica — foco em potencialidades e linguagem descritiva.</p>
+                  </DialogHeader>
+
+                  <div className="space-y-4">
+                    {/* 1. Potencialidades (obrigatório) — ZDR */}
+                    <div className="space-y-1.5">
+                      <Label>Potencialidades (ZDR) *</Label>
+                      <Textarea
+                        placeholder="O que esse aluno já faz bem? (em sala, no intervalo, em casa)"
+                        value={form.potencialidades}
+                        onChange={(e) => setForm((f) => ({ ...f, potencialidades: e.target.value }))}
+                        rows={2}
+                        className="bg-emerald-50/50 border-emerald-200"
+                      />
+                      <p className="text-[11px] text-muted-foreground">Registre primeiro o que o aluno já consegue para planejar os próximos passos (ZDP).</p>
+                    </div>
+
+                    {/* 2. Objetivos de desenvolvimento (ZDP) */}
+                    <div className="space-y-1.5">
+                      <Label>Objetivos de desenvolvimento (ZDP)</Label>
+                      <Textarea
+                        placeholder="Próximos passos que a rede pode apoiar"
+                        value={form.zdp}
+                        onChange={(e) => setForm((f) => ({ ...f, zdp: e.target.value }))}
+                        rows={1}
+                      />
+                    </div>
+
+                    {/* 3. Tipo */}
                     <div className="space-y-1.5">
                       <Label>Tipo *</Label>
                       <Select value={form.tipo} onValueChange={(v) => setForm((f) => ({ ...f, tipo: v }))}>
@@ -681,44 +747,197 @@ export default function PsychStudentDetail() {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* 4. Queixa / Situação (linguagem descritiva) */}
                     <div className="space-y-1.5">
-                      <Label>Classificação *</Label>
-                      <Select value={form.classificacao} onValueChange={(v) => setForm((f) => ({ ...f, classificacao: v }))}>
+                      <Label>Queixa / Situação (linguagem descritiva)</Label>
+                      <Textarea
+                        placeholder="Descreva a situação (evite rótulos; ex.: 'demonstra necessidade de apoio para manter a atenção em tarefas de leitura')."
+                        value={form.queixaDescritiva}
+                        onChange={(e) => setForm((f) => ({ ...f, queixaDescritiva: e.target.value }))}
+                        rows={2}
+                      />
+                    </div>
+
+                    {/* 5. Decisão da Equipe Multidisciplinar */}
+                    <div className="space-y-1.5">
+                      <Label>Decisão da Equipe Multidisciplinar *</Label>
+                      <p className="text-[11px] text-muted-foreground">Escolha em que ponto o caso está e se seguirá ou não em acompanhamento pela equipe.</p>
+                      <Select value={form.decisaoEquipe} onValueChange={(v) => setForm((f) => ({ ...f, decisaoEquipe: v }))}>
                         <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                         <SelectContent>
-                          {PSYCH_CLASSIFICATIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                          {DECISAO_EQUIPE_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label>Necessita Acompanhamento *</Label>
-                      <Select value={form.necessitaAcompanhamento} onValueChange={(v) => setForm((f) => ({ ...f, necessitaAcompanhamento: v }))}>
-                        <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                        <SelectContent>
-                          {["Sim", "Não"].map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+
+                    {/* 6. PEI — contexto por estado (não tem / tem / recomendado pendente) */}
+                    <div className="border-t pt-4 space-y-3">
+                      <h4 className="text-sm font-semibold text-slate-700">PEI / Plano de Desenvolvimento</h4>
+
+                      {temPEI && (
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 space-y-2">
+                          <p className="text-sm text-slate-700">
+                            PEI registrado em <strong>{formatBRDate(student.pei?.dataRegistro) || "—"}</strong>. Objetivos: {student.pei?.objetivos ? `${student.pei.objetivos.slice(0, 80)}${student.pei.objetivos.length > 80 ? "…" : ""}` : "—"}
+                          </p>
+                          <Button type="button" variant="link" className="h-auto p-0 text-emerald-700" onClick={() => setShowForm(false)}>
+                            Ver PEI na ficha
+                          </Button>
+                          <div className="pt-2 border-t border-emerald-200/60 space-y-2">
+                            <p className="text-xs font-medium text-slate-600">Atualizar PEI nesta avaliação (opcional)</p>
+                            <div className="grid gap-2">
+                              <Input value={form.peiObjetivos} onChange={(e) => setForm((f) => ({ ...f, peiObjetivos: e.target.value }))} placeholder="Objetivos de aprendizagem" className="text-sm" />
+                              <Textarea value={form.peiEstrategias} onChange={(e) => setForm((f) => ({ ...f, peiEstrategias: e.target.value }))} placeholder="Estratégias de mediação" rows={2} className="text-sm" />
+                              <div className="flex gap-2 flex-wrap">
+                                <Input value={form.peiResponsavel} onChange={(e) => setForm((f) => ({ ...f, peiResponsavel: e.target.value }))} placeholder="Responsável" className="flex-1 min-w-[120px] text-sm" />
+                                <Input type="date" value={form.peiDataRevisao} onChange={(e) => setForm((f) => ({ ...f, peiDataRevisao: e.target.value }))} className="w-[140px] text-sm" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {peiRecomendadoPendente && student.peiRecomendado && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 text-sm text-slate-700">
+                          PEI recomendado pela equipe em <strong>{formatBRDate(student.peiRecomendado.dataRecomendacao)}</strong>. Prazo: <strong>{formatBRDate(student.peiRecomendado.prazo)}</strong>. Aguardando conclusão pelo professor.
+                        </div>
+                      )}
+
+                      {!temPEI && !peiRecomendadoPendente && (
+                        <>
+                          <div className="space-y-1.5">
+                            <Label>Recomenda elaboração de PEI?</Label>
+                            <Select value={form.recomendaPEI} onValueChange={(v) => setForm((f) => ({ ...f, recomendaPEI: v }))}>
+                              <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Sim">Sim</SelectItem>
+                                <SelectItem value="Não">Não</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {form.recomendaPEI === "Sim" && (
+                            <>
+                              <div className="space-y-2">
+                                <Label className="text-xs">Áreas de atenção para o professor</Label>
+                                <div className="flex flex-wrap gap-2">
+                                  {AREAS_ATENCAO_PEI.map((area) => (
+                                    <label key={area} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                                      <Checkbox
+                                        checked={form.areasAtencaoPEI.includes(area)}
+                                        onCheckedChange={(c) =>
+                                          setForm((f) => ({
+                                            ...f,
+                                            areasAtencaoPEI: c ? [...f.areasAtencaoPEI, area] : f.areasAtencaoPEI.filter((a) => a !== area),
+                                          }))
+                                        }
+                                      />
+                                      {area}
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs">Sugestões para o professor</Label>
+                                <Textarea value={form.sugestoesPEI} onChange={(e) => setForm((f) => ({ ...f, sugestoesPEI: e.target.value }))} placeholder="Ex.: Priorizar objetivos curtos em leitura; uso de material com apoio visual" rows={2} />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs">Prazo para conclusão do PEI *</Label>
+                                <Input type="date" value={form.prazoPEI} onChange={(e) => setForm((f) => ({ ...f, prazoPEI: e.target.value }))} />
+                              </div>
+                            </>
+                          )}
+                        </>
+                      )}
                     </div>
-                    <div className="space-y-1.5">
-                      <Label>Possui PEI? *</Label>
-                      <Select value={form.possuiPEI} onValueChange={(v) => setForm((f) => ({ ...f, possuiPEI: v }))}>
-                        <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                        <SelectContent>
-                          {PEI_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
+
+                    {/* 9. Observação Técnica */}
                     <div className="space-y-1.5">
                       <Label>Observação Técnica</Label>
-                      <Textarea value={form.observacao} onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))} rows={3} />
+                      <p className="text-[11px] text-muted-foreground">
+                        Registre o que observou no atendimento com a criança: como reagiu, contexto da sessão ou impressões que não cabem nos outros campos.
+                      </p>
+                      <p className="text-[11px] text-muted-foreground italic">
+                        Ex.: Durante a leitura compartilhada manteve atenção; relatou que em casa gosta de desenhar.
+                      </p>
+                      <Textarea
+                        value={form.observacao}
+                        onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))}
+                        placeholder="Ex.: Demonstrou dificuldade em falar sobre a escola; combinado retomar no próximo encontro."
+                        rows={3}
+                      />
                     </div>
+
                     <div className="flex gap-2">
                       <Button onClick={handleSave} className="flex-1">Salvar</Button>
                       <Button variant="outline" onClick={() => setShowForm(false)} className="flex-1">Cancelar</Button>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              {/* Modal Contato com Família (abre após salvar avaliação — estilo OC-1) */}
+              <Dialog open={showFamilyContactModal} onOpenChange={setShowFamilyContactModal}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Phone className="h-5 w-5 text-emerald-600" /> Contato com a Família
+                    </DialogTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Registre as tentativas de comunicação (mesmos critérios do coordenador).
+                    </p>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <p className="text-xs font-medium text-slate-600">Canais de Contato</p>
+                    <div className="grid gap-2">
+                      <Button
+                        variant="outline"
+                        className="justify-start gap-3 h-auto py-3 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                        onClick={() => {
+                          handleAttemptToggle("tentativa1", true);
+                          toast({ title: "Registro salvo", description: "Envio (WhatsApp) registrado na timeline." });
+                        }}
+                      >
+                        <MessageSquare className="h-4 w-4 text-emerald-600" />
+                        <div className="text-left">
+                          <span className="font-medium">Registrar Envio (WhatsApp)</span>
+                          <p className="text-[10px] text-muted-foreground font-normal">Registra disparo na timeline.</p>
+                        </div>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="justify-start gap-3 h-auto py-3 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                        onClick={() => {
+                          handleAttemptToggle("tentativa2", true);
+                          toast({ title: "Registro salvo", description: "Ligação registrada na timeline." });
+                        }}
+                      >
+                        <PhoneCall className="h-4 w-4 text-blue-600" />
+                        <div className="text-left">
+                          <span className="font-medium">Registrar Ligação</span>
+                          <p className="text-[10px] text-muted-foreground font-normal">Registra a tentativa na timeline.</p>
+                        </div>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="justify-start gap-3 h-auto py-3 border-amber-200 hover:bg-amber-50 hover:text-amber-700"
+                        onClick={() => {
+                          handleAttemptToggle("tentativa3", true);
+                          toast({ title: "Registro salvo", description: "Recado via Agenda registrado na timeline." });
+                        }}
+                      >
+                        <FileText className="h-4 w-4 text-amber-600" />
+                        <div className="text-left">
+                          <span className="font-medium">Registrar Recado via Agenda</span>
+                          <p className="text-[10px] text-muted-foreground font-normal">Registra envio na timeline.</p>
+                        </div>
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex justify-end pt-2">
+                    <Button variant="outline" onClick={() => setShowFamilyContactModal(false)}>Fechar</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </TabsContent>
 
@@ -742,6 +961,8 @@ export default function PsychStudentDetail() {
                         intervention: "bg-amber-500",
                         referral: "bg-red-500",
                         family_contact: "bg-green-500",
+                        potencialidades_registradas: "bg-emerald-500",
+                        pei_atualizado: "bg-indigo-500",
                       }[event.type] || "bg-primary";
 
                       return (
@@ -749,7 +970,7 @@ export default function PsychStudentDetail() {
                           <div className={`mt-1.5 w-2.5 h-2.5 rounded-full ${iconColor} flex-shrink-0`} />
                           <div>
                             <p className="text-sm">{event.description}</p>
-                            <p className="text-xs text-muted-foreground">{event.date}</p>
+                            <p className="text-xs text-muted-foreground">{formatBRDate(event.date)}</p>
                           </div>
                         </div>
                       );
@@ -764,7 +985,7 @@ export default function PsychStudentDetail() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <FileText className="h-4 w-4" /> Documentos do Aluno (Laudo, PEI)
+              <FileText className="h-4 w-4" /> Documentos do Aluno (laudo, etc.)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -782,7 +1003,7 @@ export default function PsychStudentDetail() {
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">{doc.date} • {doc.responsavel}</p>
+                      <p className="text-xs text-muted-foreground">{formatBRDate(doc.date)} • {doc.responsavel}</p>
                     </div>
                   </div>
                   <Button variant="ghost" size="sm">
@@ -793,17 +1014,10 @@ export default function PsychStudentDetail() {
             ) : (
               <p className="text-center text-muted-foreground text-sm py-2">Nenhum documento registrado.</p>
             )}
-            <div className="flex flex-col sm:flex-row gap-2 pt-2">
-              <Select value={uploadDocCategory} onValueChange={(v) => setUploadDocCategory(v as "laudo" | "pei" | "outro")}>
-                <SelectTrigger className="w-full sm:w-36 bg-white"><SelectValue placeholder="Tipo" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="laudo">Laudo</SelectItem>
-                  <SelectItem value="pei">PEI</SelectItem>
-                  <SelectItem value="outro">Outro</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" className="flex-1 gap-2" onClick={handleDocUpload}>
-                <Upload className="h-4 w-4" /> Upload (Simulado)
+            <p className="text-[11px] text-muted-foreground pt-1">O PEI é elaborado e registrado no sistema (avaliação psicopedagógica), não por upload.</p>
+            <div className="pt-2">
+              <Button variant="outline" className="gap-2" onClick={handleDocUpload}>
+                <Upload className="h-4 w-4" /> Upload Laudo (Simulado)
               </Button>
             </div>
           </CardContent>
