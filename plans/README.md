@@ -19,6 +19,8 @@ Esta pasta concentra **planos** e **templates** para implementar novas features 
 | [2026-02-25-refactor-context-agents-claude-para-simp.md](2026-02-25-refactor-context-agents-claude-para-simp.md) | Plano PREVC para refatorar .context, AGENTS.md e CLAUDE.md ao projeto SIMP (em revisão). |
 | [2026-02-25-migracao-simp-para-starter-kit.md](2026-02-25-migracao-simp-para-starter-kit.md) | Plano de migração do frontend e domínio SIMP para o starter-kit-v2 (Next.js, Clerk, Prisma) — execução futura. |
 | [2026-02-25-migracao-simp-para-simp-v2-patch-minimo.md](2026-02-25-migracao-simp-para-simp-v2-patch-minimo.md) | Migração SIMP → SIMP-V2 com patch mínimo: adicionar páginas/rotas, layout SIMP, dados em mock; todas as telas funcionando. |
+| [2026-02-27-proposta-pei-equipe-multidisciplinar.md](2026-02-27-proposta-pei-equipe-multidisciplinar.md) | Proposta de PEI como documento elaborável (equipe multidisciplinar + professor). |
+| [2026-02-27-plano-impl-elaboracao-pei-guiada.md](2026-02-27-plano-impl-elaboracao-pei-guiada.md) | Plano de implementação: elaboração de PEI guiada (wizard) baseada no modelo Jonas. |
 
 ## Convenção de nomes para planos
 

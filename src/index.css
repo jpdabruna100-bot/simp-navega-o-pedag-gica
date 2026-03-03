@@ -101,3 +101,22 @@
     color: hsl(0 72% 40%);
   }
 }
+
+/* Impressão do PEI — mostra apenas o card do PEI */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #pei-print-content,
+  #pei-print-content * {
+    visibility: visible;
+  }
+  #pei-print-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none;
+    border: 1px solid #d1d5db;
+  }
+}

@@ -24,6 +24,10 @@ This document defines terminology and domain concepts used in the SIMP project.
 - **Direção:** User with directory dashboard.
 - **Admin:** Administrator with admin dashboard.
 
+## Domain Terms
+
+- **PEI guiado:** Wizard de elaboração de PEI em 9 etapas (Visão geral, Capacidades, O que sabe, Necessidades, Recursos, Estratégias, Objetivos e metas, Avaliação, Revisão). Pré-preenchimento a partir de `assessment` e `peiRecomendado`. Ver `src/lib/pei-utils.ts` e `src/components/PEIWizard.tsx`.
+
 ## Domain Rules (when applicable)
 
 - **Auth:** Supabase Auth governs authentication; protect routes and data according to RLS and app-level checks.

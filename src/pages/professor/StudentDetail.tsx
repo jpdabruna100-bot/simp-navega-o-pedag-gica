@@ -7,16 +7,13 @@ import { RiskBadge } from "@/components/RiskBadge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileText, Clock, AlertTriangle, Send, ShieldAlert, CheckCircle2, MessageSquareHeart, ClipboardList } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { cn } from "@/lib/utils";
+import { PEIWizard } from "@/components/PEIWizard";
+import { PEIDisplayCard } from "@/components/PEIDisplayCard";
+import { peiElaboradoToLegado } from "@/lib/pei-utils";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 
@@ -36,9 +33,8 @@ export default function StudentDetail() {
   const [followUpNote, setFollowUpNote] = useState("");
   const [followUpSubmitted, setFollowUpSubmitted] = useState(false);
 
-  // PEI: elaborar/registrar quando recomendado pela equipe
-  const [showPeiModal, setShowPeiModal] = useState(false);
-  const [peiForm, setPeiForm] = useState<{ objetivos: string; estrategias: string; responsavel: string; dataRevisaoDate?: Date }>({ objetivos: "", estrategias: "", responsavel: "" });
+  // PEI: elaborar/registrar (wizard guiado)
+  const [showPeiWizard, setShowPeiWizard] = useState(false);
 
   const student = students.find((s) => s.id === studentId);
   if (!student) return <Layout><p>Aluno não encontrado.</p></Layout>;
@@ -83,36 +79,24 @@ export default function StudentDetail() {
 
   const peiRecomendadoPendente = !student.pei && !!student.peiRecomendado;
 
-  const handleSavePei = () => {
-    if (!peiForm.objetivos?.trim()) {
-      toast({ title: "Preencha os objetivos do PEI", variant: "destructive" });
-      return;
-    }
+  const handleSavePei = (peiData: ReturnType<typeof peiElaboradoToLegado>) => {
     const today = new Date().toISOString().split("T")[0];
-    const peiData = {
-      objetivos: peiForm.objetivos.trim(),
-      estrategias: peiForm.estrategias.trim() || "—",
-      responsavel: peiForm.responsavel.trim() || "Professor regente",
-      dataRevisao: peiForm.dataRevisaoDate ? format(peiForm.dataRevisaoDate, "yyyy-MM-dd") : today,
-      dataRegistro: today,
-    };
     setStudents((prev) =>
       prev.map((s) => {
         if (s.id !== studentId) return s;
         return {
           ...s,
-          pei: peiData,
+          pei: peiData as NonNullable<typeof s.pei>,
           peiRecomendado: undefined,
           timeline: [
             ...s.timeline,
-            { id: `tl_pei_${Date.now()}`, date: today, type: "pei_atualizado", description: `PEI registrado em ${today}` },
+            { id: `tl_pei_${Date.now()}`, date: today, type: "pei_atualizado" as const, description: `PEI registrado em ${today}` },
           ],
         };
       })
     );
-    toast({ title: "PEI registrado com sucesso!", className: "bg-emerald-600 text-white" });
-    setShowPeiModal(false);
-    setPeiForm({ objetivos: "", estrategias: "", responsavel: "" });
+    toast({ title: "PEI registrado com sucesso!", description: "O plano foi salvo e a equipe foi notificada.", className: "bg-emerald-600 text-white" });
+    setShowPeiWizard(false);
   };
 
   return (
@@ -133,6 +117,10 @@ export default function StudentDetail() {
             </Button>
           </div>
         </div>
+
+        {student.pei && (
+          <PEIDisplayCard studentName={student.name} pei={student.pei} />
+        )}
 
         {lastAssessment && (
           <Card>
@@ -171,7 +159,7 @@ export default function StudentDetail() {
             </CardHeader>
             <CardContent>
               <Button
-                onClick={() => setShowPeiModal(true)}
+                onClick={() => setShowPeiWizard(true)}
                 className="bg-amber-600 hover:bg-amber-700 text-white"
               >
                 <ClipboardList className="h-4 w-4 mr-2" />
@@ -181,81 +169,15 @@ export default function StudentDetail() {
           </Card>
         )}
 
-        {/* Modal: elaborar/registrar PEI */}
-        <Dialog open={showPeiModal} onOpenChange={setShowPeiModal}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Registrar PEI</DialogTitle>
-              <DialogDescription>
-                Preencha o Plano Educacional Individualizado com base nas orientações da equipe multidisciplinar.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              {student.peiRecomendado && (
-                <div className="text-xs text-amber-800 bg-amber-50 p-3 rounded border border-amber-200">
-                  <p className="font-medium">Orientações da equipe:</p>
-                  <p>Áreas: {student.peiRecomendado.areasAtencao?.join(", ")}.</p>
-                  {student.peiRecomendado.sugestoes && <p>Sugestões: {student.peiRecomendado.sugestoes}</p>}
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label>Objetivos de aprendizagem *</Label>
-                <Input
-                  value={peiForm.objetivos}
-                  onChange={(e) => setPeiForm((f) => ({ ...f, objetivos: e.target.value }))}
-                  placeholder="Ex.: Fortalecer atenção em leitura; organizar rotina de tarefas"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Estratégias de mediação</Label>
-                <Textarea
-                  value={peiForm.estrategias}
-                  onChange={(e) => setPeiForm((f) => ({ ...f, estrategias: e.target.value }))}
-                  placeholder="Ex.: Leitura compartilhada; pausas entre tarefas"
-                  rows={2}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Responsável</Label>
-                  <Input
-                    value={peiForm.responsavel}
-                    onChange={(e) => setPeiForm((f) => ({ ...f, responsavel: e.target.value }))}
-                    placeholder="Ex.: Prof. regente + AEE"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Data de revisão</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !peiForm.dataRevisaoDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {peiForm.dataRevisaoDate ? format(peiForm.dataRevisaoDate, "dd/MM/yyyy") : <span>Selecione uma data...</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={peiForm.dataRevisaoDate}
-                        onSelect={(d) => setPeiForm((f) => ({ ...f, dataRevisaoDate: d }))}
-                        locale={ptBR}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowPeiModal(false)}>Cancelar</Button>
-              <Button onClick={handleSavePei} className="bg-amber-600 hover:bg-amber-700">Registrar PEI</Button>
-            </div>
+        {/* Modal: elaborar/registrar PEI (wizard guiado) */}
+        <Dialog open={showPeiWizard} onOpenChange={setShowPeiWizard}>
+          <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-6 sm:p-8 pr-12 sm:pr-14 overflow-hidden">
+            <PEIWizard
+              student={student}
+              open={showPeiWizard}
+              onOpenChange={setShowPeiWizard}
+              onSave={handleSavePei}
+            />
           </DialogContent>
         </Dialog>
 

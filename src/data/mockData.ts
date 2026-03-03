@@ -60,8 +60,24 @@ export interface Student {
   potencialidades?: string;
   /** Objetivos de desenvolvimento (ZDP) */
   zdp?: string;
-  /** PEI/PDI elaborado no sistema */
-  pei?: { objetivos: string; estrategias: string; responsavel: string; dataRevisao: string; dataRegistro?: string };
+  /** PEI/PDI elaborado no sistema (formato legado ou completo do wizard) */
+  pei?: {
+    objetivos: string;
+    estrategias: string;
+    responsavel: string;
+    dataRevisao: string;
+    dataRegistro?: string;
+    /** Campos do PEI guiado (modelo Jonas) */
+    capacidades?: string[];
+    oQueSabe?: Record<string, string>;
+    oQueGosta?: string[];
+    necessidades?: string[];
+    recursos?: string[];
+    objetivosAcademicos?: Record<string, string>;
+    objetivosSociais?: string[];
+    metasCurtoPrazo?: Record<string, string>;
+    metasLongoPrazo?: Record<string, string>;
+  };
   /** PEI recomendado pela equipe, aguardando conclusão pelo professor (limpa quando pei for preenchido) */
   peiRecomendado?: { dataRecomendacao: string; prazo: string; areasAtencao: string[]; sugestoes?: string };
 }
