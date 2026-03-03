@@ -1,7 +1,7 @@
 import { useApp } from "@/context/AppContext";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { turmas, RiskLevel } from "@/data/mockData";
+import { RiskLevel } from "@/data/mockData";
 import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
 import { RiskFilterButtons } from "@/components/RiskFilterButtons";
@@ -11,9 +11,10 @@ import { Eye, ClipboardList, Brain } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { updateStudent, insertTimelineEvent } from "@/lib/supabase-mutations";
 
 export default function AlertsPanel() {
-  const { students, setStudents } = useApp();
+  const { students, refetchStudents, turmas, isLoading } = useApp();
   const navigate = useNavigate();
   const [turmaFilter, setTurmaFilter] = useState("all");
   const [riskFilter, setRiskFilter] = useState<RiskLevel | "all">("all");
@@ -37,42 +38,50 @@ export default function AlertsPanel() {
     .filter((s) => riskFilter === "all" || s.riskLevel === riskFilter)
     .sort((a, b) => (a.riskLevel === "high" ? -1 : b.riskLevel === "high" ? 1 : 0));
 
-  const handleConfirmReferral = () => {
+  const handleConfirmReferral = async () => {
     if (!referralStudentId) return;
     if (!referralReason.trim()) {
       toast({ title: "Informe o motivo do encaminhamento", variant: "destructive" });
       return;
     }
 
-    setStudents((prev) =>
-      prev.map((s) =>
-        s.id === referralStudentId
-          ? {
-            ...s,
-            psychReferral: true,
-            psychReferralReason: referralReason,
-            timeline: [
-              ...s.timeline,
-              {
-                id: `tl-ref-${Date.now()}`,
-                date: new Date().toISOString().split("T")[0],
-                type: "referral" as const,
-                description: "Encaminhado para avaliação psicopedagógica pela Coordenação",
-              },
-            ],
-          }
-          : s
-      )
-    );
-    toast({ title: "Aluno encaminhado para Psicologia" });
-    setReferralStudentId(null);
-    setReferralReason("");
+    try {
+      const dateStr = new Date().toISOString().split("T")[0];
+      await updateStudent(referralStudentId, {
+        psych_referral: true,
+        psych_referral_reason: referralReason,
+      });
+      await insertTimelineEvent(referralStudentId, {
+        date: dateStr,
+        type: "referral",
+        description: "Encaminhado para avaliação psicopedagógica pela Coordenação",
+      });
+      await refetchStudents();
+      toast({ title: "Aluno encaminhado para Psicologia" });
+      setReferralStudentId(null);
+      setReferralReason("");
+    } catch (e) {
+      toast({ title: "Erro ao encaminhar", description: String(e), variant: "destructive" });
+    }
   };
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center py-12">
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold">Painel de Alertas</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Painel de Alertas</h1>
+          <p className="text-muted-foreground text-sm mt-1">Alunos em risco e defasagem — triagem e encaminhamento</p>
+        </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
           <Select value={turmaFilter} onValueChange={setTurmaFilter}>

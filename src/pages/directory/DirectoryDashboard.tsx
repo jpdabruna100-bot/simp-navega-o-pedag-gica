@@ -1,5 +1,4 @@
 import { useApp } from "@/context/AppContext";
-import { turmas } from "@/data/mockData";
 import Layout from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -9,7 +8,7 @@ import {
 import { Building2, TrendingUp, TrendingDown, AlertTriangle, Lightbulb, ShieldAlert } from "lucide-react";
 
 export default function DirectoryDashboard() {
-  const { students } = useApp();
+  const { students, turmas, isLoading } = useApp();
 
   // === KPIs básicos ===
   const totalStudents = students.length;
@@ -18,18 +17,18 @@ export default function DirectoryDashboard() {
   const riskPercent = ((highRisk / totalStudents) * 100).toFixed(1);
 
   const allInterventions = students.flatMap((s) => s.interventions);
-  const concluded = allInterventions.filter((i) => i.status === "Concluída").length;
-  const inProgress = allInterventions.filter((i) => i.status === "Em andamento").length;
-  const planned = allInterventions.filter((i) => i.status === "Planejada").length;
+  const concluded = allInterventions.filter((i) => i.status === "Concluído").length;
+  const inProgress = allInterventions.filter((i) => i.status === "Em_Acompanhamento").length;
+  const planned = allInterventions.filter((i) => i.status === "Aguardando").length;
   const concludedPercent = allInterventions.length > 0 ? ((concluded / allInterventions.length) * 100).toFixed(0) : "0";
 
   // Alunos alto risco sem intervenção ativa
   const highRiskNoIntervention = students.filter(
-    (s) => s.riskLevel === "high" && !s.interventions.some((i) => i.status === "Em andamento" || i.status === "Planejada")
+    (s) => s.riskLevel === "high" && !s.interventions.some((i) => i.status === "Em_Acompanhamento" || i.status === "Aguardando")
   ).length;
 
   // === Turmas mais críticas ===
-  const turmaRanking = turmas
+  const turmaRanking = (turmas ?? [])
     .map((t) => {
       const ts = students.filter((s) => s.turmaId === t.id);
       const high = ts.filter((s) => s.riskLevel === "high").length;
@@ -38,7 +37,7 @@ export default function DirectoryDashboard() {
     .sort((a, b) => b.pct - a.pct);
 
   // === Comparativo entre turmas ===
-  const turmaData = turmas.map((t) => {
+  const turmaData = (turmas ?? []).map((t) => {
     const ts = students.filter((s) => s.turmaId === t.id);
     return {
       turma: t.name,
@@ -50,7 +49,7 @@ export default function DirectoryDashboard() {
 
   // === Risco por série ===
   const seriesMap: Record<string, { high: number; medium: number; low: number }> = {};
-  turmas.forEach((t) => {
+  (turmas ?? []).forEach((t) => {
     const serie = t.name.split(" ")[0] + " " + t.name.split(" ")[1]; // "1º Ano", etc.
     if (!seriesMap[serie]) seriesMap[serie] = { high: 0, medium: 0, low: 0 };
     students.filter((s) => s.turmaId === t.id).forEach((s) => {
@@ -112,6 +111,16 @@ export default function DirectoryDashboard() {
       : "Leitura com mais alunos adequados do que defasados. ✓",
     `Taxa de conclusão de intervenções: ${concludedPercent}%.`,
   ].filter(Boolean);
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center py-12">
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>

@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useApp } from "@/context/AppContext";
 import { formatBRDate } from "@/lib/utils";
 import { useParams } from "react-router-dom";
-import { turmas, type Intervention } from "@/data/mockData";
+import type { Intervention } from "@/data/mockData";
 import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { Clock, ClipboardList, Brain, TrendingUp, AlertTriangle, FileText, Eye, 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
 import { InterventionDetailView } from "@/components/InterventionDetailView";
 import { toast } from "@/hooks/use-toast";
+import { updateStudent, insertTimelineEvent, updateIntervention, insertInterventionUpdate } from "@/lib/supabase-mutations";
 
 const mapConceptToValue = (concept: string) => {
   if (["Defasada", "Defasado", "Insuficiente"].includes(concept)) return 1;
@@ -46,7 +47,7 @@ const CONCEPT_RISK_COLOR: Record<string, string> = {
 
 export default function CoordStudentDetail() {
   const { studentId } = useParams();
-  const { students, setStudents } = useApp();
+  const { students, turmas, refetchStudents } = useApp();
   const [evolutionYear, setEvolutionYear] = useState<number>(2025);
   const [openContingencyModal, setOpenContingencyModal] = useState(false);
   const [openViewPlanModal, setOpenViewPlanModal] = useState(false);
@@ -87,7 +88,7 @@ export default function CoordStudentDetail() {
 
   if (!student) return <Layout><p>Aluno não encontrado.</p></Layout>;
 
-  const turma = turmas.find((t) => t.id === student.turmaId);
+  const turma = turmas?.find((t) => t.id === student.turmaId);
   const lastAssessment = student.assessments[student.assessments.length - 1];
   const interventionAguardando = student.interventions.find((i) => i.status === "Aguardando");
   const interventionComPlano = student.interventions.find(
@@ -106,47 +107,40 @@ export default function CoordStudentDetail() {
     }
   };
 
-  const handleAddUpdate = (content: string, isFinalResolution: boolean = false) => {
+  const handleAddUpdate = async (content: string, isFinalResolution: boolean = false) => {
     if (!interventionToView) return;
 
     const date = new Date();
     const yyyy = date.getFullYear();
     const mm = String(date.getMonth() + 1).padStart(2, '0');
     const dd = String(date.getDate()).padStart(2, '0');
-
     const HH = String(date.getHours()).padStart(2, '0');
     const MM = String(date.getMinutes()).padStart(2, '0');
 
-    const novoUpdate = {
-      id: `up-${Date.now()}`,
-      date: `${yyyy}-${mm}-${dd}`,
-      time: `${HH}:${MM}`,
-      author: "Coordenação",
-      content
-    };
-
-    const updatedInterventions = student.interventions.map(i => {
-      if (i.id === interventionToView.id) {
-        let uInterv = { ...i, updates: [...(i.updates || []), novoUpdate] };
-
-        if (isFinalResolution) {
-          uInterv = { ...uInterv, status: "Concluído", resolutionAta: content };
-        }
-
-        setInterventionToView(uInterv); // Atualiza modal atual
-        return uInterv;
+    try {
+      await insertInterventionUpdate(interventionToView.id, {
+        date: `${yyyy}-${mm}-${dd}`,
+        time: `${HH}:${MM}`,
+        author: "Coordenação",
+        content,
+      });
+      if (isFinalResolution) {
+        await updateIntervention(interventionToView.id, {
+          status: "Concluído",
+          resolution_ata: content,
+        });
       }
-      return i;
-    });
-
-    const updatedStudent = { ...student, interventions: updatedInterventions };
-    setStudents(students.map(s => s.id === student.id ? updatedStudent : s));
-
-    toast({
-      title: isFinalResolution ? "Ciclo encerrado com sucesso" : "Andamento Registrado",
-      description: isFinalResolution ? "O caso foi fechado a partir da timeline." : "A nota foi adicionada à timeline com sucesso.",
-      duration: 3000
-    });
+      await refetchStudents();
+      if (isFinalResolution) setOpenViewPlanModal(false);
+      setInterventionToView(null);
+      toast({
+        title: isFinalResolution ? "Ciclo encerrado com sucesso" : "Andamento Registrado",
+        description: isFinalResolution ? "O caso foi fechado a partir da timeline." : "A nota foi adicionada à timeline com sucesso.",
+        duration: 3000
+      });
+    } catch (e) {
+      toast({ title: "Erro ao registrar andamento", description: String(e), variant: "destructive" });
+    }
   };
 
   // Alert reasons
@@ -157,15 +151,21 @@ export default function CoordStudentDetail() {
   const defFields = [lastAssessment?.leitura, lastAssessment?.escrita, lastAssessment?.matematica].filter((v) => v === "Defasada");
   if (defFields.length > 0) alertReasons.push(`Defasagem em ${defFields.length} área(s)`);
 
-  const handleReferPsych = () => {
+  const handleReferPsych = async () => {
     if (student.psychReferral) return;
-    setStudents((prev) =>
-      prev.map((s) =>
-        s.id === student.id
-          ? { ...s, psychReferral: true, timeline: [...s.timeline, { id: `tl-ref-${Date.now()}`, date: new Date().toISOString().split("T")[0], type: "referral" as const, description: "Encaminhado para avaliação psicopedagógica pela Coordenação" }] }
-          : s
-      )
-    );
+    try {
+      const dateStr = new Date().toISOString().split("T")[0];
+      await updateStudent(student.id, { psych_referral: true });
+      await insertTimelineEvent(student.id, {
+        date: dateStr,
+        type: "referral",
+        description: "Encaminhado para avaliação psicopedagógica pela Coordenação",
+      });
+      await refetchStudents();
+      toast({ title: "Aluno encaminhado para Psicologia" });
+    } catch (e) {
+      toast({ title: "Erro ao encaminhar", description: String(e), variant: "destructive" });
+    }
   };
 
   const statusColor = (s: string) => {

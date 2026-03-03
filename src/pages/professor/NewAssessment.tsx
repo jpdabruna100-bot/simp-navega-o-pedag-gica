@@ -2,6 +2,7 @@ import { useApp } from "@/context/AppContext";
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { RiskLevel, Assessment } from "@/data/mockData";
+import { insertAssessment, updateStudent, insertTimelineEvent, insertIntervention } from "@/lib/supabase-mutations";
 import Layout from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import { toast } from "@/hooks/use-toast";
 
 export default function NewAssessment() {
   const { studentId } = useParams();
-  const { students, setStudents } = useApp();
+  const { students, refetchStudents } = useApp();
   const navigate = useNavigate();
 
   const student = students.find((s) => s.id === studentId);
@@ -33,7 +34,7 @@ export default function NewAssessment() {
 
   if (!student) return <Layout><p>Aluno não encontrado.</p></Layout>;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.conceitoGeral || !form.leitura || !form.escrita || !form.matematica || !form.atencao || !form.comportamento || !form.dificuldadePercebida) {
       toast({ title: "Preencha todos os campos obrigatórios", variant: "destructive" });
       return;
@@ -44,11 +45,12 @@ export default function NewAssessment() {
     }
 
     const now = new Date();
+    const dateStr = now.toISOString().split("T")[0];
     const newAssessment: Assessment = {
       id: `a${Date.now()}`,
-      date: now.toISOString().split("T")[0],
+      date: dateStr,
       anoLetivo: now.getFullYear(),
-      bimestre: Math.ceil((now.getMonth() + 1) / 3), // approximate bimestre
+      bimestre: Math.ceil((now.getMonth() + 1) / 3),
       conceitoGeral: form.conceitoGeral,
       leitura: form.leitura,
       escrita: form.escrita,
@@ -67,25 +69,42 @@ export default function NewAssessment() {
     if (form.conceitoGeral === "Insuficiente" || defCount >= 2) newRisk = "high";
     else if (form.conceitoGeral === "Regular" || defCount >= 1) newRisk = "medium";
 
-    setStudents((prev) =>
-      prev.map((s) =>
-        s.id === studentId
-          ? {
-              ...s,
-              riskLevel: newRisk,
-              lastAssessmentDate: newAssessment.date,
-              assessments: [...s.assessments, newAssessment],
-              timeline: [
-                ...s.timeline,
-                { id: `tl${Date.now()}`, date: newAssessment.date, type: "assessment" as const, description: "Nova avaliação pedagógica realizada" },
-              ],
-            }
-          : s
-      )
-    );
-
-    toast({ title: "Avaliação salva com sucesso!" });
-    navigate(-1);
+    try {
+      await insertAssessment(student!.id, newAssessment);
+      await updateStudent(student!.id, {
+        risk_level: newRisk,
+        last_assessment_date: dateStr,
+      });
+      await insertTimelineEvent(student!.id, {
+        date: dateStr,
+        type: "assessment",
+        description: "Nova avaliação pedagógica realizada",
+      });
+      if (newRisk !== "low" || form.dificuldadePercebida === "Sim") {
+        await insertIntervention(student!.id, {
+          date: dateStr,
+          actionCategory: "Ações Internas",
+          actionTool: "Análise da Coordenação",
+          objetivo: form.observacaoProfessor?.slice(0, 200) || "Avaliação com dificuldade percebida — aguardando análise da coordenação",
+          responsavel: "Coordenação",
+          status: "Aguardando",
+        });
+        await insertTimelineEvent(student!.id, {
+          date: dateStr,
+          type: "intervention",
+          description: "Encaminhado para análise da coordenação",
+        });
+      }
+      await refetchStudents();
+      const encaminhado = newRisk !== "low" || form.dificuldadePercebida === "Sim";
+      toast({
+        title: "Avaliação salva com sucesso!",
+        description: encaminhado ? "Aluno encaminhado para o coordenador em Planos de Acompanhamento." : undefined,
+      });
+      navigate(-1);
+    } catch (e) {
+      toast({ title: "Erro ao salvar avaliação", description: String(e), variant: "destructive" });
+    }
   };
 
   const Field = ({ label, field, options }: { label: string; field: keyof typeof form; options: string[] }) => (

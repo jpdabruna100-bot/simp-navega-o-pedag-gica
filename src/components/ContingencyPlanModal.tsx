@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "@/hooks/use-toast";
+import { updateIntervention } from "@/lib/supabase-mutations";
 import { ShieldAlert, Sparkles, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -28,7 +29,7 @@ export function ContingencyPlanModal({
   interventionId,
   onConfirm,
 }: ContingencyPlanModalProps) {
-  const { students, setStudents } = useApp();
+  const { students, refetchStudents } = useApp();
   const [newActionCategory, setNewActionCategory] = useState("Ações Internas");
   const [newActionTool, setNewActionTool] = useState("");
   const [newActionDeadline, setNewActionDeadline] = useState<Date | undefined>(undefined);
@@ -72,7 +73,7 @@ export function ContingencyPlanModal({
     return { areas, sintomas };
   })();
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!interventionId) return;
     if (!newActionTool && newActionCategory !== "Equipe Multidisciplinar") {
       toast({ title: "Selecione a ferramenta de ação rápida", variant: "destructive" });
@@ -83,30 +84,21 @@ export function ContingencyPlanModal({
       return;
     }
 
-    setStudents((prev) =>
-      prev.map((s) => {
-        if (!s.interventions.some((i) => i.id === interventionId)) return s;
-        return {
-          ...s,
-          interventions: s.interventions.map((i) =>
-            i.id === interventionId
-              ? {
-                ...i,
-                actionCategory: newActionCategory as any,
-                actionTool: newActionCategory === "Equipe Multidisciplinar" ? "Pendente de Avaliação Clínica/Triagem" : newActionTool,
-                objetivo: newActionDescription,
-                pendingUntil: newActionDeadline ? format(newActionDeadline, "yyyy-MM-dd") : undefined,
-                status: "Em_Acompanhamento" as const,
-              }
-              : i
-          ),
-        };
-      })
-    );
-
-    toast({ title: "Plano de ação ativado. Aluno em acompanhamento!" });
-    onOpenChange(false);
-    onConfirm?.();
+    try {
+      await updateIntervention(interventionId, {
+        action_category: newActionCategory as "Ações Internas" | "Acionar Família" | "Acionar Psicologia" | "Acionar Psicopedagogia" | "Equipe Multidisciplinar",
+        action_tool: newActionCategory === "Equipe Multidisciplinar" ? "Pendente de Avaliação Clínica/Triagem" : newActionTool,
+        objetivo: newActionDescription,
+        pending_until: newActionDeadline ? format(newActionDeadline, "yyyy-MM-dd") : null,
+        status: "Em_Acompanhamento",
+      });
+      await refetchStudents();
+      toast({ title: "Plano de ação ativado. Aluno em acompanhamento!" });
+      onOpenChange(false);
+      onConfirm?.();
+    } catch (e) {
+      toast({ title: "Erro ao salvar plano", description: String(e), variant: "destructive" });
+    }
   };
 
   return (

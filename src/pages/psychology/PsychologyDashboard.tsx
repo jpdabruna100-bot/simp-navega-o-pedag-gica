@@ -9,13 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { turmas, RiskLevel, getPsychStatus, Student } from "@/data/mockData";
+import { RiskLevel, getPsychStatus, Student } from "@/data/mockData";
 import { Brain, ShieldAlert, ArrowRight, NotebookPen, Clock, CheckCircle2, UserPlus, FileSearch, HeartHandshake } from "lucide-react";
 
 type MultidisciplinaryStage = "triage" | "assessment" | "followup" | "completed";
 
 export default function PsychologyDashboard() {
-  const { students } = useApp();
+  const { students, turmas, isLoading } = useApp();
   const navigate = useNavigate();
   const [turmaFilter, setTurmaFilter] = useState("all");
   const [riskFilter, setRiskFilter] = useState<RiskLevel | "all">("all");
@@ -100,11 +100,11 @@ export default function PsychologyDashboard() {
     return () => clearTimeout(timer);
   }, []);
 
-  const getUrgentHighlight = (s: Student) => s.id === "s1" && getStage(s) !== "completed";
+  const getUrgentHighlight = (s: Student) => s.criticalAlert && getStage(s) !== "completed";
 
   const renderKanbanCard = (student: Student) => {
     const isUrgent = getUrgentHighlight(student);
-    const turma = turmas.find((t) => t.id === student.turmaId);
+    const turma = turmas?.find((t) => t.id === student.turmaId);
 
     // Find active multi intervention if any
     const activeInt = student.interventions.find(i =>

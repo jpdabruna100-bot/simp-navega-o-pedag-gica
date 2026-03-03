@@ -1,12 +1,12 @@
 import { useApp } from "@/context/AppContext";
 import { formatBRDate } from "@/lib/utils";
 import { useParams, useNavigate } from "react-router-dom";
-import { turmas, getRiskEmoji } from "@/data/mockData";
+import { getRiskEmoji } from "@/data/mockData";
 import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, Clock, AlertTriangle, Send, ShieldAlert, CheckCircle2, MessageSquareHeart, ClipboardList } from "lucide-react";
+import { FileText, Clock, AlertTriangle, Send, ShieldAlert, CheckCircle2, MessageSquareHeart, ClipboardList, ChevronDown, ChevronUp, History } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,12 +14,13 @@ import { Input } from "@/components/ui/input";
 import { PEIWizard } from "@/components/PEIWizard";
 import { PEIDisplayCard } from "@/components/PEIDisplayCard";
 import { peiElaboradoToLegado } from "@/lib/pei-utils";
+import { updateStudent, insertTimelineEvent, updatePsychAssessment } from "@/lib/supabase-mutations";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 
 export default function StudentDetail() {
   const { studentId } = useParams();
-  const { students, setStudents } = useApp();
+  const { students, setStudents, turmas, refetchStudents } = useApp();
   const navigate = useNavigate();
 
   const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -35,11 +36,12 @@ export default function StudentDetail() {
 
   // PEI: elaborar/registrar (wizard guiado)
   const [showPeiWizard, setShowPeiWizard] = useState(false);
+  const [showHistoricoAvaliacoes, setShowHistoricoAvaliacoes] = useState(false);
 
   const student = students.find((s) => s.id === studentId);
   if (!student) return <Layout><p>Aluno não encontrado.</p></Layout>;
 
-  const turma = turmas.find((t) => t.id === student.turmaId);
+  const turma = turmas?.find((t) => t.id === student.turmaId);
   const lastAssessment = student.assessments[student.assessments.length - 1];
 
   const handleSendAlert = () => {
@@ -79,24 +81,28 @@ export default function StudentDetail() {
 
   const peiRecomendadoPendente = !student.pei && !!student.peiRecomendado;
 
-  const handleSavePei = (peiData: ReturnType<typeof peiElaboradoToLegado>) => {
+  const handleSavePei = async (peiData: ReturnType<typeof peiElaboradoToLegado>) => {
     const today = new Date().toISOString().split("T")[0];
-    setStudents((prev) =>
-      prev.map((s) => {
-        if (s.id !== studentId) return s;
-        return {
-          ...s,
-          pei: peiData as NonNullable<typeof s.pei>,
-          peiRecomendado: undefined,
-          timeline: [
-            ...s.timeline,
-            { id: `tl_pei_${Date.now()}`, date: today, type: "pei_atualizado" as const, description: `PEI registrado em ${today}` },
-          ],
-        };
-      })
-    );
-    toast({ title: "PEI registrado com sucesso!", description: "O plano foi salvo e a equipe foi notificada.", className: "bg-emerald-600 text-white" });
-    setShowPeiWizard(false);
+    try {
+      await updateStudent(student!.id, {
+        pei: peiData as object,
+        pei_recomendado: null,
+      });
+      const lastPa = student!.psychAssessments[student!.psychAssessments.length - 1];
+      if (lastPa) {
+        await updatePsychAssessment(lastPa.id, { pei: peiData as object, possui_pei: "Sim" });
+      }
+      await insertTimelineEvent(student!.id, {
+        date: today,
+        type: "pei_atualizado",
+        description: `PEI registrado em ${today}`,
+      });
+      await refetchStudents();
+      toast({ title: "PEI registrado com sucesso!", description: "O plano foi salvo e a equipe foi notificada.", className: "bg-emerald-600 text-white" });
+      setShowPeiWizard(false);
+    } catch (e) {
+      toast({ title: "Erro ao salvar PEI", description: String(e), variant: "destructive" });
+    }
   };
 
   return (
@@ -122,24 +128,66 @@ export default function StudentDetail() {
           <PEIDisplayCard studentName={student.name} pei={student.pei} />
         )}
 
-        {lastAssessment && (
+        {student.assessments.length > 0 && (
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Última Avaliação Pedagógica</CardTitle>
-              <p className="text-xs text-muted-foreground">{formatBRDate(lastAssessment.date)}</p>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div>
+                <CardTitle className="text-base">Avaliações Pedagógicas</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Última: {formatBRDate(lastAssessment!.date)} — {student.assessments.length} registro{student.assessments.length > 1 ? "s" : ""}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1 text-muted-foreground"
+                onClick={() => setShowHistoricoAvaliacoes(!showHistoricoAvaliacoes)}
+              >
+                <History className="h-4 w-4" />
+                {showHistoricoAvaliacoes ? "Ocultar histórico" : "Ver histórico"}
+                {showHistoricoAvaliacoes ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-                <div><span className="text-muted-foreground">Conceito:</span> <strong>{lastAssessment.conceitoGeral}</strong></div>
-                <div><span className="text-muted-foreground">Leitura:</span> <strong>{lastAssessment.leitura}</strong></div>
-                <div><span className="text-muted-foreground">Escrita:</span> <strong>{lastAssessment.escrita}</strong></div>
-                <div><span className="text-muted-foreground">Matemática:</span> <strong>{lastAssessment.matematica}</strong></div>
-                <div><span className="text-muted-foreground">Atenção:</span> <strong>{lastAssessment.atencao}</strong></div>
-                <div><span className="text-muted-foreground">Comportamento:</span> <strong>{lastAssessment.comportamento}</strong></div>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Última avaliação</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                    <div><span className="text-muted-foreground">Conceito:</span> <strong>{lastAssessment!.conceitoGeral}</strong></div>
+                    <div><span className="text-muted-foreground">Leitura:</span> <strong>{lastAssessment!.leitura}</strong></div>
+                    <div><span className="text-muted-foreground">Escrita:</span> <strong>{lastAssessment!.escrita}</strong></div>
+                    <div><span className="text-muted-foreground">Matemática:</span> <strong>{lastAssessment!.matematica}</strong></div>
+                    <div><span className="text-muted-foreground">Atenção:</span> <strong>{lastAssessment!.atencao}</strong></div>
+                    <div><span className="text-muted-foreground">Comportamento:</span> <strong>{lastAssessment!.comportamento}</strong></div>
+                  </div>
+                  {lastAssessment!.dificuldadePercebida && (
+                    <p className="mt-2 text-sm text-risk-high font-medium">⚠ Dificuldade percebida</p>
+                  )}
+                  {lastAssessment!.observacaoProfessor && (
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Parecer do professor</p>
+                      <p className="text-sm text-slate-700">{lastAssessment!.observacaoProfessor}</p>
+                    </div>
+                  )}
+                </div>
+
+                {showHistoricoAvaliacoes && student.assessments.length > 1 && (
+                  <div className="pt-3 border-t space-y-3">
+                    <p className="text-xs font-medium text-muted-foreground">Avaliações anteriores</p>
+                    {[...student.assessments].reverse().slice(1).map((a) => (
+                      <div key={a.id} className="p-3 rounded-lg bg-muted/50 text-sm">
+                        <p className="font-medium text-muted-foreground">{formatBRDate(a.date)} — {a.conceitoGeral}</p>
+                        <p className="text-xs mt-1">
+                          Leitura {a.leitura} · Escrita {a.escrita} · Matemática {a.matematica} · Atenção {a.atencao} · Comportamento {a.comportamento}
+                        </p>
+                        {a.observacaoProfessor && (
+                          <p className="text-xs mt-2 text-slate-600 italic line-clamp-2">{a.observacaoProfessor}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              {lastAssessment.dificuldadePercebida && (
-                <p className="mt-2 text-sm text-risk-high font-medium">⚠ Dificuldade percebida</p>
-              )}
             </CardContent>
           </Card>
         )}

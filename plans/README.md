@@ -21,6 +21,8 @@ Esta pasta concentra **planos** e **templates** para implementar novas features 
 | [2026-02-25-migracao-simp-para-simp-v2-patch-minimo.md](2026-02-25-migracao-simp-para-simp-v2-patch-minimo.md) | Migração SIMP → SIMP-V2 com patch mínimo: adicionar páginas/rotas, layout SIMP, dados em mock; todas as telas funcionando. |
 | [2026-02-27-proposta-pei-equipe-multidisciplinar.md](2026-02-27-proposta-pei-equipe-multidisciplinar.md) | Proposta de PEI como documento elaborável (equipe multidisciplinar + professor). |
 | [2026-02-27-plano-impl-elaboracao-pei-guiada.md](2026-02-27-plano-impl-elaboracao-pei-guiada.md) | Plano de implementação: elaboração de PEI guiada (wizard) baseada no modelo Jonas. |
+| [2026-03-03-plano-congruencia-rotas-perfis.md](2026-03-03-plano-congruencia-rotas-perfis.md) | Plano de congruência visual e funcional entre rotas (Professor, Coordenação, Psicologia, Diretoria). |
+| [2026-03-03-plano-tabelas-supabase-mcp.md](2026-03-03-plano-tabelas-supabase-mcp.md) | Plano para criar tabelas no Supabase via MCP, a partir das interfaces do domínio (mockData). |
 
 ## Convenção de nomes para planos
 

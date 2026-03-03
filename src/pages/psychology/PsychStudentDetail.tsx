@@ -2,7 +2,7 @@ import { useApp } from "@/context/AppContext";
 import { formatBRDate } from "@/lib/utils";
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { turmas, PsychAssessment, DECISAO_EQUIPE_OPTIONS, AREAS_ATENCAO_PEI, FamilyContact, StudentDocument } from "@/data/mockData";
+import { PsychAssessment, DECISAO_EQUIPE_OPTIONS, AREAS_ATENCAO_PEI, FamilyContact, StudentDocument } from "@/data/mockData";
 import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
+import { insertPsychAssessment, updateStudent, insertTimelineEvent, updateIntervention, upsertFamilyContact } from "@/lib/supabase-mutations";
 import { Clock, BookOpen, Brain, Phone, FileText, Upload, Eye, ShieldAlert, CheckCircle2, UserPlus, ArrowRight, ArrowLeft, MessageSquare, PhoneCall } from "lucide-react";
 
 const CONCEPT_RISK_COLOR: Record<string, string> = {
@@ -31,11 +32,11 @@ const hasMultiIntervention = (s: { interventions: { actionCategory: string }[] }
 export default function PsychStudentDetail() {
   const { studentId } = useParams();
   const navigate = useNavigate();
-  const { students, setStudents } = useApp();
+  const { students, setStudents, turmas, refetchStudents } = useApp();
   const student = students.find((s) => s.id === studentId);
   const [showForm, setShowForm] = useState(false);
 
-  const isCriticalCase = Boolean(student?.criticalAlert ?? studentId === "s1");
+  const isCriticalCase = Boolean(student?.criticalAlert);
   const [crisisResolved, setCrisisResolved] = useState(false);
   const [crisisNote, setCrisisNote] = useState("");
   const [crisisResolvedDate, setCrisisResolvedDate] = useState("");
@@ -65,14 +66,14 @@ export default function PsychStudentDetail() {
 
   if (!student) return <Layout><p>Aluno não encontrado.</p></Layout>;
 
-  const turma = turmas.find((t) => t.id === student.turmaId);
+  const turma = turmas?.find((t) => t.id === student.turmaId);
   const lastAssessment = student.assessments[student.assessments.length - 1];
   const isReferred = student.psychReferral || hasMultiIntervention(student);
 
   const temPEI = !!student.pei;
   const peiRecomendadoPendente = !student.pei && !!student.peiRecomendado;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.potencialidades?.trim()) {
       toast({ title: "Preencha as potencialidades (obrigatório)", variant: "destructive" });
       return;
@@ -112,102 +113,125 @@ export default function PsychStudentDetail() {
       prazoPEI: recomendaPEI ? form.prazoPEI : undefined,
     };
 
-    const isInitial = form.tipo === "Inicial";
+    try {
+      await insertPsychAssessment(student!.id, {
+        date: today,
+        tipo: form.tipo as "Inicial" | "Reavaliação" | "Acompanhamento",
+        classificacao: form.decisaoEquipe,
+        necessita_acompanhamento: form.decisaoEquipe !== "Não necessita acompanhamento",
+        observacao: form.observacao,
+        possui_pei: peiData ? "Sim" : recomendaPEI ? "Em elaboração" : "Não",
+        responsavel: "Dra. Fernanda Costa",
+        potencialidades: form.potencialidades.trim(),
+        zdp: form.zdp?.trim() || undefined,
+        queixa_descritiva: form.queixaDescritiva?.trim() || undefined,
+        pei: peiData ?? undefined,
+        recomenda_elaboracao_pei: recomendaPEI || undefined,
+        areas_atencao_pei: recomendaPEI ? form.areasAtencaoPEI : undefined,
+        sugestoes_pei: recomendaPEI ? form.sugestoesPEI?.trim() : undefined,
+        prazo_pei: recomendaPEI ? form.prazoPEI : undefined,
+      });
 
-    setStudents((prev) =>
-      prev.map((s) => {
-        if (s.id !== studentId) return s;
-
-        const newTimeline = [
-          ...s.timeline,
-          { id: `tl${Date.now()}`, date: today, type: "psych" as const, description: `Avaliação psicopedagógica (${form.tipo}) realizada` },
-        ];
-        if (peiData) {
-          newTimeline.push({ id: `tl${Date.now() + 1}`, date: today, type: "pei_atualizado" as const, description: "PEI/Plano de desenvolvimento atualizado" });
-        }
-        if (recomendaPEI) {
-          newTimeline.push({ id: `tl${Date.now() + 3}`, date: today, type: "psych" as const, description: `Recomendada elaboração de PEI pela equipe (prazo: ${formatBRDate(form.prazoPEI) || "—"})` });
-        }
-
-        let familyContact = s.familyContact;
-        if (!familyContact) {
-          familyContact = {
-            id: `fc${Date.now()}`,
-            studentId: s.id,
-            tentativa1: { done: false, date: null },
-            tentativa2: { done: false, date: null },
-            tentativa3: { done: false, date: null },
-            houveRetorno: null,
-            observacao: "",
-          };
-          newTimeline.push({
-            id: `tl${Date.now() + 2}`,
-            date: today,
-            type: "family_contact" as const,
-            description: "Tarefa de contato com a família criada (WhatsApp, Ligação, Notificação Agenda)",
-          });
-        }
-
-        const nextStudent: typeof s = {
-          ...s,
-          psychAssessments: [...s.psychAssessments, newPsych],
-          timeline: newTimeline,
-          familyContact,
+      const studentUpdate: Parameters<typeof updateStudent>[1] = {
+        potencialidades: form.potencialidades.trim(),
+        zdp: form.zdp?.trim() || undefined,
+      };
+      if (peiData) {
+        studentUpdate.pei = { ...(student!.pei as object || {}), ...peiData, dataRegistro: (student!.pei as { dataRegistro?: string })?.dataRegistro || today };
+        studentUpdate.pei_recomendado = null;
+      } else if (recomendaPEI) {
+        studentUpdate.pei_recomendado = {
+          dataRecomendacao: today,
+          prazo: form.prazoPEI,
+          areasAtencao: form.areasAtencaoPEI,
+          sugestoes: form.sugestoesPEI?.trim(),
         };
-        nextStudent.potencialidades = form.potencialidades.trim();
-        if (form.zdp?.trim()) nextStudent.zdp = form.zdp.trim();
-        if (peiData) {
-          nextStudent.pei = { ...(s.pei || {}), ...peiData, dataRegistro: s.pei?.dataRegistro || today };
-          nextStudent.peiRecomendado = undefined;
-        } else if (recomendaPEI) {
-          nextStudent.peiRecomendado = {
-            dataRecomendacao: today,
-            prazo: form.prazoPEI,
-            areasAtencao: form.areasAtencaoPEI,
-            sugestoes: form.sugestoesPEI?.trim(),
-          };
-        }
+      }
+      await updateStudent(student!.id, studentUpdate);
 
-        return nextStudent;
-      })
-    );
+      await insertTimelineEvent(student!.id, {
+        date: today,
+        type: "psych",
+        description: `Avaliação psicopedagógica (${form.tipo}) realizada`,
+      });
+      if (peiData) {
+        await insertTimelineEvent(student!.id, { date: today, type: "pei_atualizado", description: "PEI/Plano de desenvolvimento atualizado" });
+      }
+      if (recomendaPEI) {
+        await insertTimelineEvent(student!.id, {
+          date: today,
+          type: "psych",
+          description: `Recomendada elaboração de PEI pela equipe (prazo: ${formatBRDate(form.prazoPEI) || "—"})`,
+        });
+      }
+      if (!student!.familyContact) {
+        await upsertFamilyContact(student!.id, {
+          tentativa1: { done: false, date: null },
+          tentativa2: { done: false, date: null },
+          tentativa3: { done: false, date: null },
+        });
+        await insertTimelineEvent(student!.id, {
+          date: today,
+          type: "family_contact",
+          description: "Tarefa de contato com a família criada (WhatsApp, Ligação, Notificação Agenda)",
+        });
+      }
 
-    toast({ title: "Avaliação psicopedagógica salva!" });
-    setShowForm(false);
-    setForm({ tipo: "", potencialidades: "", zdp: "", queixaDescritiva: "", decisaoEquipe: "", recomendaPEI: "", areasAtencaoPEI: [], sugestoesPEI: "", prazoPEI: "", peiObjetivos: "", peiEstrategias: "", peiResponsavel: "", peiDataRevisao: "", observacao: "" });
-    setShowFamilyContactModal(true);
+      await refetchStudents();
+      toast({ title: "Avaliação psicopedagógica salva!" });
+      setShowForm(false);
+      setForm({ tipo: "", potencialidades: "", zdp: "", queixaDescritiva: "", decisaoEquipe: "", recomendaPEI: "", areasAtencaoPEI: [], sugestoesPEI: "", prazoPEI: "", peiObjetivos: "", peiEstrategias: "", peiResponsavel: "", peiDataRevisao: "", observacao: "" });
+      setShowFamilyContactModal(true);
+    } catch (e) {
+      toast({ title: "Erro ao salvar avaliação", description: String(e), variant: "destructive" });
+    }
   };
 
-  const updateFamilyContact = (updates: Partial<FamilyContact>) => {
-    setStudents((prev) =>
-      prev.map((s) => {
-        if (s.id !== studentId || !s.familyContact) return s;
-        return { ...s, familyContact: { ...s.familyContact, ...updates } };
-      })
-    );
+  const updateFamilyContact = async (updates: Partial<FamilyContact>) => {
+    if (!student?.familyContact) return;
+    try {
+      const fc = student.familyContact;
+      await upsertFamilyContact(student.id, {
+        tentativa1: updates.tentativa1 ?? fc.tentativa1,
+        tentativa2: updates.tentativa2 ?? fc.tentativa2,
+        tentativa3: updates.tentativa3 ?? fc.tentativa3,
+        houve_retorno: updates.houveRetorno ?? fc.houveRetorno,
+        observacao: updates.observacao ?? fc.observacao,
+      });
+      await refetchStudents();
+    } catch (e) {
+      toast({ title: "Erro ao atualizar contato", description: String(e), variant: "destructive" });
+    }
   };
 
-  const handleAttemptToggle = (attempt: "tentativa1" | "tentativa2" | "tentativa3", checked: boolean) => {
+  const handleAttemptToggle = async (attempt: "tentativa1" | "tentativa2" | "tentativa3", checked: boolean) => {
+    if (!student) return;
+    const fc = student.familyContact;
+    if (!fc) {
+      toast({ title: "Contato com família ainda não criado", variant: "destructive" });
+      return;
+    }
     const today = new Date().toISOString().split("T")[0];
     const canal = attempt === "tentativa1" ? "WhatsApp" : attempt === "tentativa2" ? "Ligação" : "Notificação Agenda";
-    updateFamilyContact({
-      [attempt]: { done: checked, date: checked ? today : null },
-    });
-    if (checked) {
-      setStudents((prev) =>
-        prev.map((s) => {
-          if (s.id !== studentId) return s;
-          return {
-            ...s,
-            timeline: [...s.timeline, {
-              id: `tl${Date.now()}`,
-              date: today,
-              type: "family_contact" as const,
-              description: `Contato com família: ${canal} realizado`,
-            }],
-          };
-        })
-      );
+    const next = { ...fc, [attempt]: { done: checked, date: checked ? today : null } };
+    try {
+      await upsertFamilyContact(student!.id, {
+        tentativa1: next.tentativa1,
+        tentativa2: next.tentativa2,
+        tentativa3: next.tentativa3,
+        houve_retorno: fc.houveRetorno,
+        observacao: fc.observacao,
+      });
+      if (checked) {
+        await insertTimelineEvent(student!.id, {
+          date: today,
+          type: "family_contact",
+          description: `Contato com família: ${canal} realizado`,
+        });
+      }
+      await refetchStudents();
+    } catch (e) {
+      toast({ title: "Erro ao registrar contato", description: String(e), variant: "destructive" });
     }
   };
 
@@ -231,20 +255,23 @@ export default function PsychStudentDetail() {
     ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory) && i.status !== "Concluído"
   );
 
-  const handleAssumirCaso = (responsavel: string) => {
+  const handleAssumirCaso = async (responsavel: string) => {
     if (!activeMultiInt) return;
-    setStudents(prev => prev.map(s => {
-      if (s.id !== studentId) return s;
-      return {
-        ...s,
-        interventions: s.interventions.map(i => i.id === activeMultiInt.id ? { ...i, acceptedBy: responsavel, status: "Em_Acompanhamento" } : i),
-        timeline: [
-          ...s.timeline,
-          { id: `tl${Date.now()}`, date: new Date().toISOString().split("T")[0], type: "intervention" as const, description: `Caso assumido por ${responsavel}` }
-        ]
-      };
-    }));
-    toast({ title: "Caso Assumido", description: `O caso foi atribuído à ${responsavel}` });
+    try {
+      await updateIntervention(activeMultiInt.id, {
+        accepted_by: responsavel,
+        status: "Em_Acompanhamento",
+      });
+      await insertTimelineEvent(student!.id, {
+        date: new Date().toISOString().split("T")[0],
+        type: "intervention",
+        description: `Caso assumido por ${responsavel}`,
+      });
+      await refetchStudents();
+      toast({ title: "Caso Assumido", description: `O caso foi atribuído à ${responsavel}` });
+    } catch (e) {
+      toast({ title: "Erro ao assumir caso", description: String(e), variant: "destructive" });
+    }
   };
 
   const updateMedicacaoExterno = (updates: { medicacao?: string; acompanhamentoExterno?: string }) => {

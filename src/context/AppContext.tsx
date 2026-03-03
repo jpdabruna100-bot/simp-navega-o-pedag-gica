@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState } from "react";
-import { Student, initialStudents } from "@/data/mockData";
+import { useQueryClient } from "@tanstack/react-query";
+import type { Student, Turma, User } from "@/data/mockData";
+import { useStudents, useTurmas, useProfiles } from "@/hooks/useSupabaseData";
+import { QUERY_KEYS } from "@/hooks/useSupabaseData";
 
 type Profile = "professor" | "psicologia" | "coordenacao" | "diretoria" | "admin" | null;
 
@@ -8,16 +11,43 @@ interface AppContextType {
   setProfile: (p: Profile) => void;
   students: Student[];
   setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
+  turmas: Turma[];
+  profiles: User[];
+  isLoading: boolean;
+  refetchStudents: () => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile>(null);
-  const [students, setStudents] = useState<Student[]>(initialStudents);
+  const queryClient = useQueryClient();
+  const { data: studentsData, isLoading: studentsLoading, refetch: refetchStudents } = useStudents();
+  const { data: turmasData, isLoading: turmasLoading } = useTurmas();
+  const { data: profilesData } = useProfiles();
+
+  const students = studentsData ?? [];
+  const isLoading = studentsLoading || turmasLoading;
+
+  const setStudents: React.Dispatch<React.SetStateAction<Student[]>> = (updater) => {
+    queryClient.setQueryData(QUERY_KEYS.students, (prev: Student[] | undefined) =>
+      typeof updater === "function" ? updater(prev ?? []) : updater
+    );
+  };
 
   return (
-    <AppContext.Provider value={{ profile, setProfile, students, setStudents }}>
+    <AppContext.Provider
+      value={{
+        profile,
+        setProfile,
+        students,
+        setStudents,
+        turmas: turmasData ?? [],
+        profiles: profilesData ?? [],
+        isLoading,
+        refetchStudents,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );

@@ -1,6 +1,8 @@
 import { useApp } from "@/context/AppContext";
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import type { Assessment } from "@/data/mockData";
+import { insertAssessment, updateStudent, insertTimelineEvent, insertIntervention } from "@/lib/supabase-mutations";
 import Layout from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 export default function ExperimentalAssessment() {
     const { studentId } = useParams();
-    const { students } = useApp();
+    const { students, refetchStudents } = useApp();
     const navigate = useNavigate();
 
     const student = students.find((s) => s.id === studentId);
@@ -186,7 +188,7 @@ export default function ExperimentalAssessment() {
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!form.observacaoProfessor.trim()) {
             toast({ title: "O parecer final do professor é obrigatório", variant: "destructive" });
             return;
@@ -197,8 +199,63 @@ export default function ExperimentalAssessment() {
             return;
         }
 
-        toast({ title: hasDefasagem ? "Avaliação recebida! Aluno encaminhado para monitoria." : "Avaliação salva com sucesso!" });
-        navigate(`/professor/aluno/${studentId}`);
+        const now = new Date();
+        const dateStr = now.toISOString().split("T")[0];
+        const defCount = [form.leitura, form.escrita, form.matematica, form.atencao].filter((v) => v === "Defasada").length;
+        const newRisk = form.conceitoGeral === "Insuficiente" || defCount >= 2 ? "high" : form.conceitoGeral === "Regular" || defCount >= 1 ? "medium" : "low";
+
+        const newAssessment: Assessment = {
+            id: `a${Date.now()}`,
+            date: dateStr,
+            anoLetivo: now.getFullYear(),
+            bimestre: Math.ceil((now.getMonth() + 1) / 3),
+            conceitoGeral: form.conceitoGeral,
+            leitura: form.leitura,
+            escrita: form.escrita,
+            matematica: form.matematica,
+            atencao: form.atencao,
+            comportamento: form.comportamento,
+            dificuldadePercebida: hasDefasagem,
+            observacaoProfessor: form.observacaoProfessor,
+            sintomasIdentificados: form.sintomasIdentificados.length ? form.sintomasIdentificados : undefined,
+            acoesIniciais: form.acoesIniciais.length ? form.acoesIniciais : undefined,
+            outrosSintomas: form.outrosSintomas || undefined,
+            outraAcao: form.outraAcao || undefined,
+            frequenciaPorArea: Object.keys(form.frequenciaPorArea).length ? form.frequenciaPorArea : undefined,
+        };
+
+        try {
+            await insertAssessment(student!.id, newAssessment);
+            await updateStudent(student!.id, {
+                risk_level: newRisk,
+                last_assessment_date: dateStr,
+            });
+            await insertTimelineEvent(student!.id, {
+                date: dateStr,
+                type: "assessment",
+                description: "Nova avaliação pedagógica realizada",
+            });
+            if (hasDefasagem) {
+                await insertIntervention(student!.id, {
+                    date: dateStr,
+                    actionCategory: "Ações Internas",
+                    actionTool: "Análise da Coordenação",
+                    objetivo: form.observacaoProfessor.slice(0, 200) || "Avaliação com defasagem — aguardando análise da coordenação",
+                    responsavel: "Coordenação",
+                    status: "Aguardando",
+                });
+                await insertTimelineEvent(student!.id, {
+                    date: dateStr,
+                    type: "intervention",
+                    description: "Encaminhado para análise da coordenação",
+                });
+            }
+            await refetchStudents();
+            toast({ title: hasDefasagem ? "Avaliação recebida! Aluno encaminhado para monitoria." : "Avaliação salva com sucesso!" });
+            navigate(`/professor/aluno/${studentId}`);
+        } catch (e) {
+            toast({ title: "Erro ao salvar avaliação", description: String(e), variant: "destructive" });
+        }
     };
 
     const Field = ({ label, field, options, tooltip }: { label: string; field: keyof typeof form; options: string[], tooltip?: string }) => (

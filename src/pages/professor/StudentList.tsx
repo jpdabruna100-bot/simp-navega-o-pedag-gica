@@ -1,6 +1,6 @@
 import { useApp } from "@/context/AppContext";
 import { useNavigate, useParams } from "react-router-dom";
-import { turmas, RiskLevel } from "@/data/mockData";
+import { RiskLevel } from "@/data/mockData";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import Layout from "@/components/Layout";
@@ -10,16 +10,26 @@ import { Search } from "lucide-react";
 
 export default function StudentList() {
   const { turmaId } = useParams();
-  const { students } = useApp();
+  const { students, turmas, isLoading } = useApp();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<RiskLevel | "all">("all");
 
-  const turma = turmas.find((t) => t.id === turmaId);
+  const turma = turmas?.find((t) => t.id === turmaId);
   const turmaStudents = students
-    .filter((s) => s.turmaId === turmaId)
+    .filter((s) => turmaId && s.turmaId === turmaId)
     .filter((s) => filter === "all" || s.riskLevel === filter)
     .filter((s) => s.name.toLowerCase().includes(search.toLowerCase()));
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center py-12">
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>

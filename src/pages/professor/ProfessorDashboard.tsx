@@ -1,18 +1,21 @@
 import { useApp } from "@/context/AppContext";
 import { formatBRDate } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
-import { turmas } from "@/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, AlertTriangle, ClipboardList } from "lucide-react";
 import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
 
 export default function ProfessorDashboard() {
-  const { students } = useApp();
+  const { students, turmas, profiles, isLoading } = useApp();
   const navigate = useNavigate();
 
-  // Professor sees turmas t1, t2, t5 (professorId u1)
-  const myTurmas = turmas.filter((t) => t.professorId === "u1");
+  const firstProfessorId = profiles.find((p) => p.role === "professor")?.id;
+  const filteredByProfessor =
+    firstProfessorId != null
+      ? turmas.filter((t) => t.professorId === firstProfessorId)
+      : turmas;
+  const myTurmas = filteredByProfessor.length > 0 ? filteredByProfessor : turmas;
   const myStudents = students.filter((s) => myTurmas.some((t) => t.id === s.turmaId));
   const demandasPei = myStudents
     .filter((s) => !s.pei && s.peiRecomendado)
@@ -25,13 +28,23 @@ export default function ProfessorDashboard() {
     .sort((a, b) => a.prazo.localeCompare(b.prazo));
   const peiPendenteCount = demandasPei.length;
 
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center py-12">
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">Painel do Professor</h1>
-            <p className="text-muted-foreground text-sm">Profª. Carla Mendes</p>
+            <p className="text-muted-foreground text-sm">{profiles.find((p) => p.role === "professor")?.name ?? "Professor"}</p>
           </div>
           {peiPendenteCount > 0 && (
             <div
@@ -75,6 +88,18 @@ export default function ProfessorDashboard() {
           </Card>
         )}
 
+        {myTurmas.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+              <Users className="h-12 w-12 text-muted-foreground/50 mb-3" />
+              <p className="font-medium text-muted-foreground">Nenhuma turma encontrada</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Execute o seed para popular o banco:{" "}
+                <code className="text-xs bg-muted px-2 py-1 rounded">npm run seed:supabase</code>
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {myTurmas.map((turma) => {
             const turmaStudents = students.filter((s) => s.turmaId === turma.id);
@@ -131,6 +156,7 @@ export default function ProfessorDashboard() {
             );
           })}
         </div>
+        )}
       </div>
     </Layout>
   );

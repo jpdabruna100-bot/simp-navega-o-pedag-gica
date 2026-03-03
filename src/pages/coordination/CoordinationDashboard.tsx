@@ -1,5 +1,4 @@
 import { useApp } from "@/context/AppContext";
-import { turmas } from "@/data/mockData";
 import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { useState, useEffect } from "react";
 
 export default function CoordinationDashboard() {
-  const { students } = useApp();
+  const { students, turmas, isLoading } = useApp();
   const navigate = useNavigate();
 
   // Mock de Alerta Crítico não lido (Isso viria do Supabase)
@@ -54,12 +53,22 @@ export default function CoordinationDashboard() {
     { name: "Alto risco", value: highRisk, color: "#ef4444" }, // red-500
   ];
 
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center py-12">
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="space-y-6">
         <div className="flex flex-col mb-2">
-          <h1 className="text-3xl font-bold text-[#1e3a8a]">Dashboard Estratégico</h1>
-          <p className="text-muted-foreground mt-1">Gestão Analítica de Casos e Acompanhamentos Pedagógicos</p>
+          <h1 className="text-2xl font-bold">Dashboard Estratégico</h1>
+          <p className="text-muted-foreground text-sm mt-1">Gestão Analítica de Casos e Acompanhamentos Pedagógicos</p>
         </div>
 
         {/* Action / Filter Bar */}

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { users, turmas } from "@/data/mockData";
+import { useApp } from "@/context/AppContext";
 import Layout from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,16 +11,18 @@ import { Users as UsersIcon, BookOpen, Link } from "lucide-react";
 const roleLabels: Record<string, string> = {
   professor: "Professor",
   psicologia: "Psicologia",
+  psicopedagogia: "Psicopedagogia",
   coordenacao: "Coordenação",
   diretoria: "Diretoria",
   admin: "Admin",
 };
 
 export default function AdminDashboard() {
+  const { profiles, turmas, isLoading } = useApp();
   const [selectedProf, setSelectedProf] = useState("");
   const [selectedTurma, setSelectedTurma] = useState("");
 
-  const profs = users.filter((u) => u.role === "professor");
+  const profs = profiles.filter((u) => u.role === "professor");
 
   const handleLink = () => {
     if (selectedProf && selectedTurma) {
@@ -29,6 +31,16 @@ export default function AdminDashboard() {
       setSelectedTurma("");
     }
   };
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center py-12">
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -41,7 +53,7 @@ export default function AdminDashboard() {
               <CardTitle className="text-base flex items-center gap-2"><UsersIcon className="h-4 w-4" /> Usuários do Sistema</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {users.map((user) => (
+              {profiles.map((user) => (
                 <div key={user.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
                   <div>
                     <p className="font-medium text-sm">{user.name}</p>
@@ -59,7 +71,7 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent className="space-y-2">
               {turmas.map((turma) => {
-                const prof = users.find((u) => u.id === turma.professorId);
+                const prof = profiles.find((u) => u.id === turma.professorId);
                 return (
                   <div key={turma.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
                     <div>

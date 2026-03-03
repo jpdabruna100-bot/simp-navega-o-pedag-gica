@@ -12,6 +12,7 @@ import { Clock, NotebookPen, FileText, CheckCircle2, Eye, ClipboardList, AlertCi
 import { InterventionDetailView } from "@/components/InterventionDetailView";
 import { Textarea } from "@/components/ui/textarea";
 import { formatBRDate } from "@/lib/utils";
+import { updateIntervention, insertInterventionUpdate } from "@/lib/supabase-mutations";
 
 const isOverdue = (dateStr?: string) => {
     if (!dateStr) return false;
@@ -22,7 +23,7 @@ const isOverdue = (dateStr?: string) => {
 };
 
 export default function InterventionManagement() {
-    const { students, setStudents } = useApp();
+    const { students, refetchStudents } = useApp();
     const [searchParams, setSearchParams] = useSearchParams();
     const preSelectedStudentId = searchParams.get("aluno");
 
@@ -92,26 +93,26 @@ export default function InterventionManagement() {
         setActiveModal("viewResolution");
     };
 
-    const handleConfirmResolution = () => {
-        if (!ataFinalText.trim()) {
+    const handleConfirmResolution = async () => {
+        if (!ataFinalText.trim() || !selectedInterventionId) {
             toast({ title: "A Ata de Resolução Final é obrigatória", variant: "destructive", duration: 3000 });
             return;
         }
 
-        setStudents(prev => prev.map(s => ({
-            ...s,
-            interventions: s.interventions.map(i =>
-                i.id === selectedInterventionId
-                    ? { ...i, status: "Concluído" as const, resolutionAta: ataFinalText }
-                    : i
-            )
-        })));
-
-        toast({ title: "Ciclo encerrado com sucesso", description: "O caso foi fechado.", duration: 3000 });
-        setActiveModal("none");
+        try {
+            await updateIntervention(selectedInterventionId, {
+                status: "Concluído",
+                resolution_ata: ataFinalText,
+            });
+            await refetchStudents();
+            toast({ title: "Ciclo encerrado com sucesso", description: "O caso foi fechado.", duration: 3000 });
+            setActiveModal("none");
+        } catch (e) {
+            toast({ title: "Erro ao encerrar ciclo", description: String(e), variant: "destructive" });
+        }
     };
 
-    const handleAddUpdate = (interventionId: string, content: string, isFinalResolution: boolean = false) => {
+    const handleAddUpdate = async (interventionId: string, content: string, isFinalResolution: boolean = false) => {
         const student = students.find(s => s.interventions.some(i => i.id === interventionId));
         if (!student) return;
 
@@ -119,37 +120,31 @@ export default function InterventionManagement() {
         const yyyy = date.getFullYear();
         const mm = String(date.getMonth() + 1).padStart(2, '0');
         const dd = String(date.getDate()).padStart(2, '0');
-
         const HH = String(date.getHours()).padStart(2, '0');
         const MM = String(date.getMinutes()).padStart(2, '0');
 
-        const novoUpdate = {
-            id: `up-${Date.now()}`,
-            date: `${yyyy}-${mm}-${dd}`,
-            time: `${HH}:${MM}`,
-            author: "Coordenação", // Aqui seria o nome logado na vida real
-            content
-        };
-
-        const updatedInterventions = student.interventions.map(i => {
-            if (i.id === interventionId) {
-                let uInterv = { ...i, updates: [...(i.updates || []), novoUpdate] };
-                if (isFinalResolution) {
-                    uInterv = { ...uInterv, status: "Concluído" as const, resolutionAta: content };
-                }
-                return uInterv;
+        try {
+            await insertInterventionUpdate(interventionId, {
+                date: `${yyyy}-${mm}-${dd}`,
+                time: `${HH}:${MM}`,
+                author: "Coordenação",
+                content,
+            });
+            if (isFinalResolution) {
+                await updateIntervention(interventionId, {
+                    status: "Concluído",
+                    resolution_ata: content,
+                });
             }
-            return i;
-        });
-
-        const updatedStudent = { ...student, interventions: updatedInterventions };
-        setStudents(students.map(s => s.id === student.id ? updatedStudent : s));
-
-        toast({
-            title: isFinalResolution ? "Ciclo encerrado com sucesso" : "Andamento Registrado",
-            description: isFinalResolution ? "O caso foi fechado a partir da timeline." : "A nota foi adicionada à timeline com sucesso.",
-            duration: 3000
-        });
+            await refetchStudents();
+            toast({
+                title: isFinalResolution ? "Ciclo encerrado com sucesso" : "Andamento Registrado",
+                description: isFinalResolution ? "O caso foi fechado a partir da timeline." : "A nota foi adicionada à timeline com sucesso.",
+                duration: 3000
+            });
+        } catch (e) {
+            toast({ title: "Erro ao registrar andamento", description: String(e), variant: "destructive" });
+        }
     };
 
     // Render Kanban Card
