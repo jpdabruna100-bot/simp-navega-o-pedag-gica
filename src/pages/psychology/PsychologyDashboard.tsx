@@ -116,6 +116,11 @@ export default function PsychologyDashboard() {
       ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory) && i.status !== "Concluído"
     );
 
+    // Responsável: preferir acceptedBy da intervenção, fallback para responsável da última avaliação psi
+    const responsavel = activeInt?.acceptedBy
+      || student.psychAssessments[student.psychAssessments.length - 1]?.responsavel
+      || null;
+
     return (
       <div
         key={student.id}
@@ -139,17 +144,18 @@ export default function PsychologyDashboard() {
         )}
 
         <div className="mt-3 space-y-2">
-          {activeInt && activeInt.objetivo && (
+          {(activeInt?.objetivo || student.psychAssessments[student.psychAssessments.length - 1]?.queixaDescritiva) && (
             <div className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded p-1.5 line-clamp-2">
-              <span className="font-semibold text-slate-400">Contexto:</span> {activeInt.objetivo}
+              <span className="font-semibold text-slate-400">Contexto:</span>{" "}
+              {activeInt?.objetivo || student.psychAssessments[student.psychAssessments.length - 1]?.queixaDescritiva}
             </div>
           )}
 
           <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
-            {activeInt && activeInt.acceptedBy ? (
+            {responsavel ? (
               <div className="flex flex-col">
                 <span className="text-slate-400 font-medium">Responsável:</span>
-                <span className="text-indigo-700 font-semibold truncate max-w-[120px]">{activeInt.acceptedBy}</span>
+                <span className="text-indigo-700 font-semibold truncate max-w-[120px]">{responsavel}</span>
               </div>
             ) : (
               <span className="text-amber-600 font-medium flex items-center gap-1">
@@ -168,7 +174,7 @@ export default function PsychologyDashboard() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Painel Multidisciplinar</h1>
-          <p className="text-muted-foreground text-sm">Dashboard de Triagem e Intervenções Pontuais</p>
+          <p className="text-muted-foreground text-sm">Dashboard de Triagem e Acompanhamento</p>
         </div>
 
         <Dialog open={showCriticalAlert} onOpenChange={setShowCriticalAlert}>
@@ -288,13 +294,13 @@ export default function PsychologyDashboard() {
             <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 p-2.5 rounded-lg">
               <div className="flex items-center gap-2">
                 <HeartHandshake className="h-4 w-4 text-emerald-600" />
-                <h2 className="font-semibold gap-2 text-emerald-900 text-sm">Intervenções Pontuais</h2>
+                <h2 className="font-semibold gap-2 text-emerald-900 text-sm">Em Acompanhamento</h2>
               </div>
               <Badge variant="secondary" className="bg-emerald-200/50 text-emerald-800">{followUpStudents.length}</Badge>
             </div>
             <div className="flex flex-col gap-3">
               {followUpStudents.length === 0 ? (
-                <div className="text-center p-4 border border-dashed rounded-xl text-slate-400 text-sm">Nenhuma intervenção atrativa</div>
+                <div className="text-center p-4 border border-dashed rounded-xl text-slate-400 text-sm">Nenhum aluno em acompanhamento</div>
               ) : followUpStudents.map(renderKanbanCard)}
             </div>
           </div>
