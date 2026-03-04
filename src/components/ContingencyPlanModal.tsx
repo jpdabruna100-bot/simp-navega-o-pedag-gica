@@ -75,7 +75,28 @@ export function ContingencyPlanModal({
 
   const handleConfirm = async () => {
     if (!interventionId) return;
-    if (!newActionTool && newActionCategory !== "Equipe Multidisciplinar") {
+
+    // Caminho direto para Equipe Multidisciplinar — sem validações extras
+    if (newActionCategory === "Equipe Multidisciplinar") {
+      try {
+        await updateIntervention(interventionId, {
+          action_category: "Equipe Multidisciplinar",
+          action_tool: "Pendente de Avaliação Clínica/Triagem",
+          objetivo: newActionDescription.trim() || "Encaminhamento para análise da Equipe Multidisciplinar (triagem interna).",
+          pending_until: newActionDeadline ? format(newActionDeadline, "yyyy-MM-dd") : null,
+          status: "Em_Acompanhamento",
+        });
+        refetchStudents();
+        toast({ title: "Encaminhado! Aluno em acompanhamento pela equipe." });
+        onOpenChange(false);
+        onConfirm?.();
+      } catch (e) {
+        toast({ title: "Erro ao encaminhar", description: String(e), variant: "destructive" });
+      }
+      return;
+    }
+
+    if (!newActionTool) {
       toast({ title: "Selecione a ferramenta de ação rápida", variant: "destructive" });
       return;
     }
@@ -87,12 +108,12 @@ export function ContingencyPlanModal({
     try {
       await updateIntervention(interventionId, {
         action_category: newActionCategory as "Ações Internas" | "Acionar Família" | "Acionar Psicologia" | "Acionar Psicopedagogia" | "Equipe Multidisciplinar",
-        action_tool: newActionCategory === "Equipe Multidisciplinar" ? "Pendente de Avaliação Clínica/Triagem" : newActionTool,
-        objetivo: newActionDescription,
+        action_tool: newActionTool,
+        objetivo: newActionDescription.trim(),
         pending_until: newActionDeadline ? format(newActionDeadline, "yyyy-MM-dd") : null,
         status: "Em_Acompanhamento",
       });
-      await refetchStudents();
+      refetchStudents();
       toast({ title: "Plano de ação ativado. Aluno em acompanhamento!" });
       onOpenChange(false);
       onConfirm?.();

@@ -267,13 +267,13 @@ export default function PsychologyDashboard() {
             <div className="flex items-center justify-between bg-indigo-50 border border-indigo-200 p-2.5 rounded-lg">
               <div className="flex items-center gap-2">
                 <FileSearch className="h-4 w-4 text-indigo-600" />
-                <h2 className="font-semibold gap-2 text-indigo-900 text-sm">Em Avaliação Inicial</h2>
+                <h2 className="font-semibold gap-2 text-indigo-900 text-sm">Aguardando Ação</h2>
               </div>
               <Badge variant="secondary" className="bg-indigo-200/50 text-indigo-800">{assessmentStudents.length}</Badge>
             </div>
             <div className="flex flex-col gap-3">
               {assessmentStudents.length === 0 ? (
-                <div className="text-center p-4 border border-dashed rounded-xl text-slate-400 text-sm">Nenhum aluno em avaliação</div>
+                <div className="text-center p-4 border border-dashed rounded-xl text-slate-400 text-sm">Nenhum aluno aguardando</div>
               ) : assessmentStudents.map(renderKanbanCard)}
             </div>
           </div>
