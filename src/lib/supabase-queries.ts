@@ -27,6 +27,19 @@ export async function fetchProfiles(): Promise<User[]> {
   }));
 }
 
+export type ProfileInsert = { name: string; email: string; role: User["role"] };
+
+export async function insertProfile(profile: ProfileInsert): Promise<User> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .insert({ name: profile.name, email: profile.email.trim(), role: profile.role })
+    .select("id, name, email, role")
+    .single();
+  if (error) throw error;
+  const r = data as { id: string; name: string; email: string; role: string };
+  return { id: r.id, name: r.name, email: r.email, role: r.role as User["role"] };
+}
+
 export async function fetchTurmas(): Promise<Turma[]> {
   const { data, error } = await supabase.from("turmas").select("*").order("name");
   if (error) throw error;

@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppProvider } from "@/context/AppContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { AdminRoute } from "@/components/AdminRoute";
@@ -19,7 +19,9 @@ import AlertsPanel from "./pages/coordination/AlertsPanel";
 import InterventionManagement from "./pages/coordination/InterventionManagement";
 import CoordStudentDetail from "./pages/coordination/CoordStudentDetail";
 import DirectoryDashboard from "./pages/directory/DirectoryDashboard";
+import AdminLayout from "./components/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminColaborador from "./pages/admin/AdminColaborador";
 import NotFound from "./pages/NotFound";
 import ExperimentalAssessment from "./pages/professor/ExperimentalAssessment";
 import CriticalOccurrenceDetail from "./pages/coordination/CriticalOccurrenceDetail";
@@ -49,7 +51,11 @@ const App = () => (
             <Route path="/coordenacao/intervencoes" element={<InterventionManagement />} />
             <Route path="/coordenacao/ocorrencias/:id" element={<CriticalOccurrenceDetail />} />
             <Route path="/diretoria" element={<DirectoryDashboard />} />
-            <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+            <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="usuarios/novo" element={<AdminColaborador />} />
+              <Route path="*" element={<Navigate to="/admin" replace />} />
+            </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
           </AuthProvider>

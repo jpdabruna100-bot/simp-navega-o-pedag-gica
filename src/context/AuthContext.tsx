@@ -9,6 +9,8 @@ interface AuthContextType {
   profile: AppUser | null;
   isAdmin: boolean;
   isLoading: boolean;
+  isRecovery: boolean;
+  clearRecovery: () => void;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -30,7 +32,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const [session, setSession] = useState<{ user: User } | null>(null);
   const [profile, setProfile] = useState<AppUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const isLoading = authLoading || profileLoading;
+  const [isRecovery, setIsRecovery] = useState(false);
 
   // Em rotas que não são /login nem /admin, fazemos logout para que as requisições de dados
   // (students, interventions, etc.) usem a chave anon e as tabelas carreguem corretamente.
@@ -52,26 +57,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
+
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
       if (cancelled) return;
       setSession(s ? { user: s.user } : null);
       if (s?.user?.email) {
-        const p = await fetchProfileByEmail(s.user.email);
-        if (!cancelled) setProfile(p);
-      } else if (!cancelled) {
+        setProfileLoading(true);
+        fetchProfileByEmail(s.user.email).then((p) => {
+          if (!cancelled) { setProfile(p); setProfileLoading(false); setAuthLoading(false); }
+        });
+      } else {
         setProfile(null);
+        setAuthLoading(false);
       }
-      if (!cancelled) setIsLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
+
+    // Callback síncrono: não usa await para não segurar o lock do Supabase Auth.
+    // setProfileLoading(true) é batched com setSession na mesma renderização,
+    // evitando o gap onde isLoading=false antes do perfil carregar.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
       if (cancelled) return;
+      if (event === "PASSWORD_RECOVERY") setIsRecovery(true);
       setSession(s ? { user: s.user } : null);
+      setAuthLoading(false);
       if (s?.user?.email) {
-        const p = await fetchProfileByEmail(s.user.email);
-        if (!cancelled) setProfile(p);
-      } else if (!cancelled) setProfile(null);
-      if (!cancelled) setIsLoading(false);
+        const email = s.user.email;
+        setProfileLoading(true); // batched com setSession → sem gap no isLoading
+        fetchProfileByEmail(email).then((p) => { // .then() não segura o lock
+          if (!cancelled) { setProfile(p); setProfileLoading(false); }
+        });
+      } else {
+        setProfile(null);
+        setProfileLoading(false);
+      }
     });
+
     return () => {
       cancelled = true;
       subscription.unsubscribe();
@@ -97,6 +117,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile,
         isAdmin: profile?.role === "admin",
         isLoading,
+        isRecovery,
+        clearRecovery: () => setIsRecovery(false),
         login,
         logout,
       }}
