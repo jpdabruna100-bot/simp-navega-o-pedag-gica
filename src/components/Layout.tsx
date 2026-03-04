@@ -1,4 +1,5 @@
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import { LogOut, ChevronLeft, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,14 +14,21 @@ const profileLabels: Record<string, string> = {
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { profile, setProfile } = useApp();
+  const { isAdmin, logout: authLogout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const isRoot = location.pathname === `/${profile}`;
+  const effectiveProfile = isAdmin && location.pathname.startsWith("/admin") ? "admin" : profile;
+  const isRoot = location.pathname === `/${effectiveProfile}` || (effectiveProfile === "admin" && location.pathname === "/admin");
 
-  const handleLogout = () => {
-    setProfile(null);
-    navigate("/");
+  const handleLogout = async () => {
+    if (isAdmin && location.pathname.startsWith("/admin")) {
+      await authLogout();
+      navigate("/login");
+    } else {
+      setProfile(null);
+      navigate("/");
+    }
   };
 
   const handleBack = () => {
@@ -42,9 +50,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <span className="text-sm opacity-80 hidden md:inline">Sistema Integrado de Monitoramento Pedagógico</span>
           </div>
           <div className="flex items-center gap-3">
-            {profile && (
+            {effectiveProfile && (
               <span className="text-sm bg-primary-foreground/15 px-3 py-1 rounded-full">
-                {profileLabels[profile]}
+                {profileLabels[effectiveProfile]}
               </span>
             )}
             <Button variant="ghost" size="sm" onClick={handleLogout} className="text-primary-foreground hover:bg-primary/80 gap-1.5">

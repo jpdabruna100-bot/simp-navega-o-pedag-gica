@@ -2,9 +2,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppProvider } from "@/context/AppContext";
+import { AuthProvider } from "@/context/AuthContext";
+import { AdminRoute } from "@/components/AdminRoute";
 import ProfileSelection from "./pages/ProfileSelection";
+import Login from "./pages/Login";
 import ProfessorDashboard from "./pages/professor/ProfessorDashboard";
 import StudentList from "./pages/professor/StudentList";
 import StudentDetail from "./pages/professor/StudentDetail";
@@ -30,9 +33,11 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<ProfileSelection />} />
-            <Route path="/professor" element={<ProfessorDashboard />} />
+          <AuthProvider>
+            <Routes>
+              <Route path="/" element={<ProfileSelection />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/professor" element={<ProfessorDashboard />} />
             <Route path="/professor/turma/:turmaId" element={<StudentList />} />
             <Route path="/professor/aluno/:studentId" element={<StudentDetail />} />
             <Route path="/professor/aluno/:studentId/avaliacao" element={<ExperimentalAssessment />} />
@@ -44,9 +49,10 @@ const App = () => (
             <Route path="/coordenacao/intervencoes" element={<InterventionManagement />} />
             <Route path="/coordenacao/ocorrencias/:id" element={<CriticalOccurrenceDetail />} />
             <Route path="/diretoria" element={<DirectoryDashboard />} />
-            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </AuthProvider>
         </BrowserRouter>
       </AppProvider>
     </TooltipProvider>

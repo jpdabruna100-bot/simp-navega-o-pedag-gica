@@ -16,7 +16,11 @@ export default function ProfileSelection() {
   const navigate = useNavigate();
 
   const handleSelect = (key: string) => {
-    setProfile(key as any);
+    if (key === "admin") {
+      navigate("/login?redirect=/admin");
+      return;
+    }
+    setProfile(key as "professor" | "psicologia" | "coordenacao" | "diretoria");
     navigate(`/${key}`);
   };
 
