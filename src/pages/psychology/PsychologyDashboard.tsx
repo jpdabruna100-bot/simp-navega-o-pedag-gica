@@ -30,25 +30,30 @@ export default function PsychologyDashboard() {
 
   // Determine stage for Kanban
   const getStage = (s: Student): MultidisciplinaryStage => {
-    // Has unaccepted Multi Intervention? (Aguardando Triagem)
+    const MULTI_CATEGORIES = ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"];
+
+    // 1. Fila de Triagem: intervenção multi sem responsável atribuído
     const hasUnacceptedMulti = s.interventions.some(i =>
-      ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory) &&
+      MULTI_CATEGORIES.includes(i.actionCategory) &&
       !i.acceptedBy &&
       i.status !== "Concluído"
     );
     if (hasUnacceptedMulti) return "triage";
 
-    // Legacy referral with no assessments and no accepted intervention
-    if (s.psychReferral && s.psychAssessments.length === 0) {
-      const hasAcceptedInt = s.interventions.some(i =>
-        ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory) && i.acceptedBy
-      );
-      if (!hasAcceptedInt) return "triage";
-    }
+    // 2. Aguardando Ação: responsável atribuído mas sem avaliação psicológica ainda
+    //    (cobre tanto alunos com psychReferral quanto os encaminhados via multi-intervenção)
+    const acceptedMultiInt = s.interventions.find(i =>
+      MULTI_CATEGORIES.includes(i.actionCategory) &&
+      i.acceptedBy &&
+      i.status !== "Concluído"
+    );
+    if (acceptedMultiInt && s.psychAssessments.length === 0) return "assessment";
 
+    // 3. Fila de Triagem (legado): psychReferral sem intervenção multi e sem avaliações
+    if (s.psychReferral && s.psychAssessments.length === 0) return "triage";
+
+    // 4. Estágios pós-avaliação baseados no status psicológico
     const pStatus = getPsychStatus(s);
-
-    if (pStatus === "pendente") return "assessment";
     if (pStatus === "em_acompanhamento") return "followup";
     if (pStatus === "avaliado") return "completed";
 

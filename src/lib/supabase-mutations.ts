@@ -95,7 +95,17 @@ export async function updateIntervention(
     accepted_by?: string | null;
   }
 ): Promise<void> {
-  const { error } = await supabase.from("interventions").update(data).eq("id", interventionId);
+  // Converte as chaves do objeto 'data' de camelCase para snake_case para o Supabase
+  const updateData: any = {};
+  if (data.action_category !== undefined) updateData.action_category = data.action_category;
+  if (data.action_tool !== undefined) updateData.action_tool = data.action_tool;
+  if (data.objetivo !== undefined) updateData.objetivo = data.objetivo;
+  if (data.status !== undefined) updateData.status = data.status;
+  if (data.pending_until !== undefined) updateData.pending_until = data.pending_until;
+  if (data.resolution_ata !== undefined) updateData.resolution_ata = data.resolution_ata;
+  if (data.accepted_by !== undefined) updateData.accepted_by = data.accepted_by;
+
+  const { error } = await supabase.from("interventions").update(updateData).eq("id", interventionId);
   if (error) throw error;
 }
 

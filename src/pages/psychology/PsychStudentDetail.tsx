@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { insertPsychAssessment, updateStudent, insertTimelineEvent, updateIntervention, upsertFamilyContact } from "@/lib/supabase-mutations";
+import { insertPsychAssessment, updateStudent, insertTimelineEvent, updateIntervention, insertIntervention, upsertFamilyContact } from "@/lib/supabase-mutations";
 import { Clock, BookOpen, Brain, Phone, FileText, Upload, Eye, ShieldAlert, CheckCircle2, UserPlus, ArrowRight, ArrowLeft, MessageSquare, PhoneCall } from "lucide-react";
 
 const CONCEPT_RISK_COLOR: Record<string, string> = {
@@ -63,6 +63,8 @@ export default function PsychStudentDetail() {
   });
   const [openPedagogicalModal, setOpenPedagogicalModal] = useState(false);
   const [showFamilyContactModal, setShowFamilyContactModal] = useState(false);
+  const [openHistoryModal, setOpenHistoryModal] = useState(false);
+  const [openDocsModal, setOpenDocsModal] = useState(false);
 
   if (!student) return <Layout><p>Aluno não encontrado.</p></Layout>;
 
@@ -260,17 +262,18 @@ export default function PsychStudentDetail() {
     try {
       await updateIntervention(activeMultiInt.id, {
         accepted_by: responsavel,
-        status: "Em_Acompanhamento",
+        status: "Aguardando",
       });
-      await insertTimelineEvent(student!.id, {
+      // Timeline é não-crítico: falha silenciosa para não bloquear o fluxo principal
+      insertTimelineEvent(student!.id, {
         date: new Date().toISOString().split("T")[0],
         type: "intervention",
         description: `Caso assumido por ${responsavel}`,
-      });
+      }).catch((e) => console.warn("Timeline event falhou (não crítico):", e));
       await refetchStudents();
       toast({ title: "Caso Assumido", description: `O caso foi atribuído à ${responsavel}` });
     } catch (e) {
-      toast({ title: "Erro ao assumir caso", description: String(e), variant: "destructive" });
+      toast({ title: "Erro ao assumir caso", description: e instanceof Error ? e.message : JSON.stringify(e), variant: "destructive" });
     }
   };
 
@@ -280,7 +283,37 @@ export default function PsychStudentDetail() {
     );
   };
 
-  const isInTriage = activeMultiInt && !activeMultiInt.acceptedBy;
+  // Aluno com psychReferral mas sem intervenção multi criada ainda
+  const isLegacyReferral = student.psychReferral && !activeMultiInt && student.psychAssessments.length === 0;
+
+  const handleAssumirCasoLegacy = async (responsavel: string) => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      await insertIntervention(student.id, {
+        date: today,
+        actionCategory: "Acionar Psicologia",
+        actionTool: "Triagem",
+        objetivo: student.psychReferralReason || "Encaminhamento para equipe multidisciplinar.",
+        responsavel,
+        status: "Aguardando",
+        pendingUntil: undefined,
+        acceptedBy: responsavel,
+      });
+      insertTimelineEvent(student.id, {
+        date: today,
+        type: "intervention",
+        description: `Caso assumido por ${responsavel}`,
+      }).catch((e) => console.warn("Timeline event falhou (não crítico):", e));
+      await refetchStudents();
+      toast({ title: "Caso Assumido", description: `O caso foi atribuído à ${responsavel}` });
+    } catch (e) {
+      toast({ title: "Erro ao assumir caso", description: e instanceof Error ? e.message : JSON.stringify(e), variant: "destructive" });
+    }
+  };
+
+  const isInTriage = (activeMultiInt && !activeMultiInt.acceptedBy) || isLegacyReferral;
+  const hasHistory = student.psychAssessments.length > 0;
+  const hasDocs = student.documents.length > 0;
 
   return (
     <Layout>
@@ -457,6 +490,144 @@ export default function PsychStudentDetail() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Histórico e Documentos (Visível apenas na Triagem se houver dados) */}
+        {isInTriage && (hasHistory || hasDocs) && (
+          <div className="flex flex-wrap gap-2">
+            {hasHistory && (
+              <Button variant="outline" size="sm" className="gap-2 bg-white hover:bg-slate-50 text-slate-700 border-slate-200" onClick={() => setOpenHistoryModal(true)}>
+                <Clock className="h-4 w-4 text-purple-600" /> Ver Histórico Clínico ({student.psychAssessments.length})
+              </Button>
+            )}
+            {hasDocs && (
+              <Button variant="outline" size="sm" className="gap-2 bg-white hover:bg-slate-50 text-slate-700 border-slate-200" onClick={() => setOpenDocsModal(true)}>
+                <FileText className="h-4 w-4 text-blue-600" /> Ver Documentos Anexos ({student.documents.length})
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Modal: Histórico Clínico */}
+        <Dialog open={openHistoryModal} onOpenChange={setOpenHistoryModal}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Brain className="h-5 w-5 text-purple-600" /> Histórico Clínico
+                    </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  {student.psychAssessments
+                    .slice()
+                    .sort((a, b) => b.date.localeCompare(a.date))
+                    .map((pa) => (
+                      <Card key={pa.id}>
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-base">{pa.tipo}</CardTitle>
+                            <span className="text-xs text-muted-foreground">{formatBRDate(pa.date)}</span>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm">
+                          {pa.potencialidades && (
+                            <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-3">
+                              <p className="text-xs font-semibold text-emerald-800 mb-1">Potencialidades (ZDR)</p>
+                              <p className="text-slate-700">{pa.potencialidades}</p>
+                            </div>
+                          )}
+                          {pa.zdp && (
+                            <div><span className="text-muted-foreground">Objetivos (ZDP):</span> {pa.zdp}</div>
+                          )}
+                          <div>
+                            <span className="text-muted-foreground">Decisão da Equipe Multidisciplinar:</span>{" "}
+                            <strong>{pa.classificacao}</strong>
+                          </div>
+                          {(pa.recomendaElaboracaoPEI || pa.possuiPEI) && (
+                            <div>
+                              <span className="text-muted-foreground">PEI:</span>{" "}
+                              {pa.recomendaElaboracaoPEI ? (
+                                <span className="text-amber-700 text-sm">Recomendada elaboração (prazo: {formatBRDate(pa.prazoPEI) || "—"})</span>
+                              ) : (
+                                <strong>{pa.possuiPEI || "N/A"}</strong>
+                              )}
+                            </div>
+                          )}
+                          {pa.responsavel && <div><span className="text-muted-foreground">Responsável:</span> {pa.responsavel}</div>}
+                          {pa.observacao && (
+                            <div className="bg-muted/50 p-3 rounded-lg">
+                              <p className="text-xs text-muted-foreground font-medium mb-1">Observação Técnica</p>
+                              <p className="text-sm">{pa.observacao}</p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                </div>
+            </DialogContent>
+        </Dialog>
+
+        {/* Modal: Documentos */}
+        <Dialog open={openDocsModal} onOpenChange={setOpenDocsModal}>
+            <DialogContent className="max-w-xl">
+                 <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-blue-600" /> Documentos do Aluno
+                    </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3">
+                  {student.documents.map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium">{doc.name}</p>
+                            {doc.docCategory && (
+                              <Badge variant="outline" className="text-[10px] capitalize">
+                                {doc.docCategory === "laudo" ? "Laudo" : doc.docCategory === "pei" ? "PEI" : "Outro"}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">{formatBRDate(doc.date)} • {doc.responsavel}</p>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+            </DialogContent>
+        </Dialog>
+
+        {isLegacyReferral && (
+          <div className="p-4 rounded-xl border-l-4 shadow-sm mb-6 bg-amber-50 border-amber-400">
+            <div className="flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-start">
+              <div className="space-y-2 flex-1">
+                <h3 className="text-sm font-bold uppercase tracking-wider flex items-center gap-2 text-amber-800">
+                  <UserPlus className="h-4 w-4" />
+                  Triagem Pendente (Fila Geral)
+                </h3>
+                <p className="text-xs text-slate-600">Encaminhado para equipe multidisciplinar — aguardando atribuição.</p>
+                {student.psychReferralReason && (
+                  <p className="text-sm text-slate-700 bg-white/80 p-3 rounded border border-slate-100 italic leading-relaxed">
+                    &quot;{student.psychReferralReason}&quot;
+                  </p>
+                )}
+              </div>
+              <div className="sm:min-w-[200px] flex flex-col gap-2 bg-white p-3 rounded border shadow-sm self-stretch justify-center items-center text-center">
+                <p className="text-xs font-semibold text-slate-500 mb-1">Atribuir Responsabilidade</p>
+                <span className="text-xs text-amber-600 font-medium">Nenhum profissional assumiu</span>
+                <Select onValueChange={handleAssumirCasoLegacy}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Assumir Caso" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Dra. Fernanda (Psicologia)">Dra. Fernanda (Psicologia)</SelectItem>
+                    <SelectItem value="Dra. Beatriz (Psicopedagogia)">Dra. Beatriz (Psicopedagogia)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        )}
 
         {activeMultiInt && (
           <div className={`p-4 rounded-xl border-l-4 shadow-sm mb-6 ${activeMultiInt.acceptedBy ? 'bg-indigo-50/50 border-indigo-400' : 'bg-amber-50 border-amber-400'}`}>
