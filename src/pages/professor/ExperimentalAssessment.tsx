@@ -1,6 +1,7 @@
 import { useApp } from "@/context/AppContext";
 import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { addEmAndamento, removeEmAndamento } from "@/lib/professor-em-andamento";
 import type { Assessment } from "@/data/mockData";
 import { insertAssessment, updateStudent, insertTimelineEvent, insertIntervention } from "@/lib/supabase-mutations";
 import Layout from "@/components/Layout";
@@ -38,6 +39,13 @@ export default function ExperimentalAssessment() {
 
     // Controle do Wizard (Stepper) de 4 passos
     const [currentStep, setCurrentStep] = useState(1);
+
+    useEffect(() => {
+        if (studentId && student) {
+            addEmAndamento(student.id);
+            return () => removeEmAndamento(student.id);
+        }
+    }, [studentId, student]);
 
     if (!student) return <Layout><p>Aluno não encontrado.</p></Layout>;
 
@@ -251,6 +259,7 @@ export default function ExperimentalAssessment() {
                 });
             }
             await refetchStudents();
+            removeEmAndamento(student!.id);
             toast({ title: hasDefasagem ? "Avaliação recebida! Aluno encaminhado para monitoria." : "Avaliação salva com sucesso!" });
             navigate(`/professor/aluno/${studentId}`);
         } catch (e) {

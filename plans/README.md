@@ -23,6 +23,7 @@ Esta pasta concentra **planos** e **templates** para implementar novas features 
 | [2026-02-27-plano-impl-elaboracao-pei-guiada.md](2026-02-27-plano-impl-elaboracao-pei-guiada.md) | Plano de implementação: elaboração de PEI guiada (wizard) baseada no modelo Jonas. |
 | [2026-03-03-plano-congruencia-rotas-perfis.md](2026-03-03-plano-congruencia-rotas-perfis.md) | Plano de congruência visual e funcional entre rotas (Professor, Coordenação, Psicologia, Diretoria). |
 | [2026-03-03-plano-tabelas-supabase-mcp.md](2026-03-03-plano-tabelas-supabase-mcp.md) | Plano para criar tabelas no Supabase via MCP, a partir das interfaces do domínio (mockData). |
+| [2026-03-04-plano-painel-professor-turma-kanban.md](2026-03-04-plano-painel-professor-turma-kanban.md) | Painel do Professor: visão Kanban da turma, avaliações mensais, PEI pendente, notificações e produtividade. |
 
 ## Convenção de nomes para planos
 

@@ -15,6 +15,7 @@ import { PEIWizard } from "@/components/PEIWizard";
 import { PEIDisplayCard } from "@/components/PEIDisplayCard";
 import { peiElaboradoToLegado } from "@/lib/pei-utils";
 import { updateStudent, insertTimelineEvent, updatePsychAssessment } from "@/lib/supabase-mutations";
+import { addEmAndamento, removeEmAndamento } from "@/lib/professor-em-andamento";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 
@@ -98,6 +99,7 @@ export default function StudentDetail() {
         description: `PEI registrado em ${today}`,
       });
       await refetchStudents();
+      removeEmAndamento(student!.id);
       toast({ title: "PEI registrado com sucesso!", description: "O plano foi salvo e a equipe foi notificada.", className: "bg-emerald-600 text-white" });
       setShowPeiWizard(false);
     } catch (e) {
@@ -130,7 +132,7 @@ export default function StudentDetail() {
 
         {student.assessments.length > 0 && (
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
               <div>
                 <CardTitle className="text-base">Avaliações Pedagógicas</CardTitle>
                 <p className="text-xs text-muted-foreground">
@@ -149,7 +151,7 @@ export default function StudentDetail() {
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2">Última avaliação</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
@@ -207,7 +209,10 @@ export default function StudentDetail() {
             </CardHeader>
             <CardContent>
               <Button
-                onClick={() => setShowPeiWizard(true)}
+                onClick={() => {
+                  addEmAndamento(student.id);
+                  setShowPeiWizard(true);
+                }}
                 className="bg-amber-600 hover:bg-amber-700 text-white"
               >
                 <ClipboardList className="h-4 w-4 mr-2" />
@@ -218,7 +223,14 @@ export default function StudentDetail() {
         )}
 
         {/* Modal: elaborar/registrar PEI (wizard guiado) */}
-        <Dialog open={showPeiWizard} onOpenChange={setShowPeiWizard}>
+        <Dialog
+          open={showPeiWizard}
+          onOpenChange={(open) => {
+            if (open) addEmAndamento(student.id);
+            else removeEmAndamento(student.id);
+            setShowPeiWizard(open);
+          }}
+        >
           <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-6 sm:p-8 pr-12 sm:pr-14 overflow-hidden">
             <PEIWizard
               student={student}

@@ -391,42 +391,42 @@ export default function PsychStudentDetail() {
                         <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Conceito Geral</span>
                         <span className="w-fit font-bold rounded px-2 py-0.5 text-xs bg-slate-200 text-slate-700">{lastAssessment.conceitoGeral}</span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Avalie o aluno globalmente na comunidade escolar: assiduidade, capricho/organização (mochila, caderno, farda), disciplina geral e interação com colegas/professor.</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Avalie o aluno globalmente na comunidade escolar: assiduidade, capricho/organização (mochila, caderno, farda), disciplina geral e interação com colegas/professor.</p>
                     </div>
                     <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Leitura</span>
                         <span className={`w-fit font-bold rounded px-2 py-0.5 text-xs ${CONCEPT_RISK_COLOR[lastAssessment.leitura] === "hsl(0, 72%, 51%)" ? "bg-red-50 text-red-600" : CONCEPT_RISK_COLOR[lastAssessment.leitura] === "hsl(45, 93%, 47%)" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{lastAssessment.leitura}</span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Lê enunciados com autonomia pro ano escolar? A velocidade e fluência estão de acordo com o esperado (7-11 anos) ou há silabação excessiva?</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Lê enunciados com autonomia pro ano escolar? A velocidade e fluência estão de acordo com o esperado (7-11 anos) ou há silabação excessiva?</p>
                     </div>
                     <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Escrita</span>
                         <span className={`w-fit font-bold rounded px-2 py-0.5 text-xs ${CONCEPT_RISK_COLOR[lastAssessment.escrita] === "hsl(0, 72%, 51%)" ? "bg-red-50 text-red-600" : CONCEPT_RISK_COLOR[lastAssessment.escrita] === "hsl(45, 93%, 47%)" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{lastAssessment.escrita}</span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Consegue formular frases e copiá-las do quadro no tempo hábil? Avalie erros ortográficos graves (trocas p/b, f/v não esperadas para a idade).</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Consegue formular frases e copiá-las do quadro no tempo hábil? Avalie erros ortográficos graves (trocas p/b, f/v não esperadas para a idade).</p>
                     </div>
                     <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Matemática</span>
                         <span className={`w-fit font-bold rounded px-2 py-0.5 text-xs ${CONCEPT_RISK_COLOR[lastAssessment.matematica] === "hsl(0, 72%, 51%)" ? "bg-red-50 text-red-600" : CONCEPT_RISK_COLOR[lastAssessment.matematica] === "hsl(45, 93%, 47%)" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{lastAssessment.matematica}</span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">O aluno compreende o raciocínio das 4 operações adequadas à sua idade? Possui dificuldade extrema em montar/armar contas simples?</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">O aluno compreende o raciocínio das 4 operações adequadas à sua idade? Possui dificuldade extrema em montar/armar contas simples?</p>
                     </div>
                     <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Atenção</span>
                         <span className={`w-fit font-bold rounded px-2 py-0.5 text-xs ${CONCEPT_RISK_COLOR[lastAssessment.atencao] === "hsl(0, 72%, 51%)" ? "bg-red-50 text-red-600" : CONCEPT_RISK_COLOR[lastAssessment.atencao] === "hsl(45, 93%, 47%)" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{lastAssessment.atencao}</span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Foco em atividades da lousa ou silenciosas: O aluno dispersa muito rápido? Esquece instruções de 5 min atrás sistematicamente?</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Foco em atividades da lousa ou silenciosas: O aluno dispersa muito rápido? Esquece instruções de 5 min atrás sistematicamente?</p>
                     </div>
                     <div className="flex flex-col gap-1.5 p-3 border rounded-lg bg-slate-50/50">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Comportamento</span>
                         <span className={`w-fit font-bold rounded px-2 py-0.5 text-xs ${CONCEPT_RISK_COLOR[lastAssessment.comportamento] === "hsl(0, 72%, 51%)" ? "bg-red-50 text-red-600" : CONCEPT_RISK_COLOR[lastAssessment.comportamento] === "hsl(45, 93%, 47%)" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{lastAssessment.comportamento}</span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Apresenta impulsividade recorrente, agressividade (física/verbal), ou resistência forte a mudar rotinas e a ser contrariado?</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed bg-white/60 p-2 rounded border border-slate-100">Apresenta impulsividade recorrente, agressividade (física/verbal), ou resistência forte a mudar rotinas e a ser contrariado?</p>
                     </div>
                   </div>
                   <div>
@@ -521,13 +521,13 @@ export default function PsychStudentDetail() {
                     .sort((a, b) => b.date.localeCompare(a.date))
                     .map((pa) => (
                       <Card key={pa.id}>
-                        <CardHeader className="pb-2">
+                        <CardHeader className="pb-3">
                           <div className="flex items-center justify-between">
                             <CardTitle className="text-base">{pa.tipo}</CardTitle>
                             <span className="text-xs text-muted-foreground">{formatBRDate(pa.date)}</span>
                           </div>
                         </CardHeader>
-                        <CardContent className="space-y-2 text-sm">
+                        <CardContent className="space-y-3 text-sm">
                           {pa.potencialidades && (
                             <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-3">
                               <p className="text-xs font-semibold text-emerald-800 mb-1">Potencialidades (ZDR)</p>
@@ -582,7 +582,7 @@ export default function PsychStudentDetail() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-sm font-medium">{doc.name}</p>
                             {doc.docCategory && (
-                              <Badge variant="outline" className="text-[10px] capitalize">
+                              <Badge variant="outline" className="text-xs capitalize">
                                 {doc.docCategory === "laudo" ? "Laudo" : doc.docCategory === "pei" ? "PEI" : "Outro"}
                               </Badge>
                             )}
@@ -844,13 +844,13 @@ export default function PsychStudentDetail() {
                     .sort((a, b) => b.date.localeCompare(a.date))
                     .map((pa) => (
                       <Card key={pa.id}>
-                        <CardHeader className="pb-2">
+                        <CardHeader className="pb-3">
                           <div className="flex items-center justify-between">
                             <CardTitle className="text-base">{pa.tipo}</CardTitle>
                             <span className="text-xs text-muted-foreground">{formatBRDate(pa.date)}</span>
                           </div>
                         </CardHeader>
-                        <CardContent className="space-y-2 text-sm">
+                        <CardContent className="space-y-3 text-sm">
                           {pa.potencialidades && (
                             <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-3">
                               <p className="text-xs font-semibold text-emerald-800 mb-1">Potencialidades (ZDR)</p>
@@ -926,7 +926,7 @@ export default function PsychStudentDetail() {
                           rows={2}
                           className="bg-emerald-50/50 border-emerald-200"
                         />
-                        <p className="text-[11px] text-muted-foreground">Registre primeiro o que o aluno já consegue para planejar os próximos passos (ZDP).</p>
+                        <p className="text-xs text-muted-foreground">Registre primeiro o que o aluno já consegue para planejar os próximos passos (ZDP).</p>
                       </div>
 
                       {/* 2. Objetivos de desenvolvimento (ZDP) */}
@@ -965,7 +965,7 @@ export default function PsychStudentDetail() {
                       {/* 5. Decisão da Equipe Multidisciplinar */}
                       <div className="space-y-1.5">
                         <Label>Decisão da Equipe Multidisciplinar *</Label>
-                        <p className="text-[11px] text-muted-foreground">Escolha em que ponto o caso está e se seguirá ou não em acompanhamento pela equipe.</p>
+                        <p className="text-xs text-muted-foreground">Escolha em que ponto o caso está e se seguirá ou não em acompanhamento pela equipe.</p>
                         <Select value={form.decisaoEquipe} onValueChange={(v) => setForm((f) => ({ ...f, decisaoEquipe: v }))}>
                           <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                           <SelectContent>
@@ -1056,10 +1056,10 @@ export default function PsychStudentDetail() {
                       {/* 9. Observação Técnica */}
                       <div className="space-y-1.5">
                         <Label>Observação Técnica</Label>
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           Registre o que observou no atendimento com a criança: como reagiu, contexto da sessão ou impressões que não cabem nos outros campos.
                         </p>
-                        <p className="text-[11px] text-muted-foreground italic">
+                        <p className="text-xs text-muted-foreground italic">
                           Ex.: Durante a leitura compartilhada manteve atenção; relatou que em casa gosta de desenhar.
                         </p>
                         <Textarea
@@ -1103,7 +1103,7 @@ export default function PsychStudentDetail() {
                           <MessageSquare className="h-4 w-4 text-emerald-600" />
                           <div className="text-left">
                             <span className="font-medium">Registrar Envio (WhatsApp)</span>
-                            <p className="text-[10px] text-muted-foreground font-normal">Registra disparo na timeline.</p>
+                            <p className="text-xs text-muted-foreground font-normal">Registra disparo na timeline.</p>
                           </div>
                         </Button>
                         <Button
@@ -1117,7 +1117,7 @@ export default function PsychStudentDetail() {
                           <PhoneCall className="h-4 w-4 text-blue-600" />
                           <div className="text-left">
                             <span className="font-medium">Registrar Ligação</span>
-                            <p className="text-[10px] text-muted-foreground font-normal">Registra a tentativa na timeline.</p>
+                            <p className="text-xs text-muted-foreground font-normal">Registra a tentativa na timeline.</p>
                           </div>
                         </Button>
                         <Button
@@ -1131,7 +1131,7 @@ export default function PsychStudentDetail() {
                           <FileText className="h-4 w-4 text-amber-600" />
                           <div className="text-left">
                             <span className="font-medium">Registrar Recado via Agenda</span>
-                            <p className="text-[10px] text-muted-foreground font-normal">Registra envio na timeline.</p>
+                            <p className="text-xs text-muted-foreground font-normal">Registra envio na timeline.</p>
                           </div>
                         </Button>
                       </div>
@@ -1203,7 +1203,7 @@ export default function PsychStudentDetail() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm font-medium">{doc.name}</p>
                           {doc.docCategory && (
-                            <Badge variant="outline" className="text-[10px] capitalize">
+                            <Badge variant="outline" className="text-xs capitalize">
                               {doc.docCategory === "laudo" ? "Laudo" : doc.docCategory === "pei" ? "PEI" : "Outro"}
                             </Badge>
                           )}
@@ -1219,7 +1219,7 @@ export default function PsychStudentDetail() {
               ) : (
                 <p className="text-center text-muted-foreground text-sm py-2">Nenhum documento registrado.</p>
               )}
-              <p className="text-[11px] text-muted-foreground pt-1">O PEI é elaborado e registrado no sistema (avaliação psicopedagógica), não por upload.</p>
+              <p className="text-xs text-muted-foreground pt-1">O PEI é elaborado e registrado no sistema (avaliação psicopedagógica), não por upload.</p>
               <div className="pt-2">
                 <Button variant="outline" className="gap-2" onClick={handleDocUpload}>
                   <Upload className="h-4 w-4" /> Upload Laudo (Simulado)

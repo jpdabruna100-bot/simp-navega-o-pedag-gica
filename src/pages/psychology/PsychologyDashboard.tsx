@@ -137,7 +137,7 @@ export default function PsychologyDashboard() {
 
         {isUrgent && (
           <div className="mb-2 w-fit">
-            <Badge className="bg-red-600 hover:bg-red-700 text-white text-[10px] uppercase gap-1 px-1.5 py-0.5 animate-pulse">
+            <Badge className="bg-red-600 hover:bg-red-700 text-white text-xs uppercase gap-1 px-1.5 py-0.5 animate-pulse">
               <ShieldAlert className="w-3 h-3" /> Tratativa Crítica (Hoje)
             </Badge>
           </div>
@@ -145,13 +145,13 @@ export default function PsychologyDashboard() {
 
         <div className="mt-3 space-y-2">
           {(activeInt?.objetivo || student.psychAssessments[student.psychAssessments.length - 1]?.queixaDescritiva) && (
-            <div className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded p-1.5 line-clamp-2">
+            <div className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded p-1.5 line-clamp-2">
               <span className="font-semibold text-slate-400">Contexto:</span>{" "}
               {activeInt?.objetivo || student.psychAssessments[student.psychAssessments.length - 1]?.queixaDescritiva}
             </div>
           )}
 
-          <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
+          <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
             {responsavel ? (
               <div className="flex flex-col">
                 <span className="text-slate-400 font-medium">Responsável:</span>
@@ -162,7 +162,7 @@ export default function PsychologyDashboard() {
                 <UserPlus className="w-3 h-3" /> Fila Geral
               </span>
             )}
-            <Badge variant="outline" className="text-[10px] text-slate-500 font-normal shadow-sm">Ver Prontuário</Badge>
+            <Badge variant="outline" className="text-xs text-slate-500 font-normal shadow-sm">Ver Prontuário</Badge>
           </div>
         </div>
       </div>

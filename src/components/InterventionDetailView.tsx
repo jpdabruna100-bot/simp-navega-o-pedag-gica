@@ -43,7 +43,7 @@ export function InterventionDetailView({ interventionToView, studentName, onAddU
     return (
         <div className="space-y-5 py-2">
             {/* Header Box */}
-            <div className="bg-white border rounded-xl p-4 shadow-sm relative overflow-hidden flex-shrink-0">
+            <div className="bg-white border rounded-lg p-4 shadow-sm relative overflow-hidden flex-shrink-0">
                 <div className={`absolute top-0 right-0 w-2 h-full ${statusColor(interventionToView.status).split(' ')[0]}`} />
                 <div className="flex justify-between items-start mb-3">
                     <div>
@@ -62,16 +62,16 @@ export function InterventionDetailView({ interventionToView, studentName, onAddU
 
             {/* Justificativa e Metadados */}
             <div className="grid grid-cols-2 gap-4 flex-shrink-0">
-                <div className="col-span-2 bg-white border rounded-xl p-4 shadow-sm border-slate-200">
+                <div className="col-span-2 bg-white border rounded-lg p-4 shadow-sm border-slate-200">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1 block">Justificativa</span>
                     <p className="text-sm text-slate-700 leading-relaxed">{interventionToView.objetivo}</p>
                 </div>
-                <div className="bg-white border rounded-xl p-4 shadow-sm border-slate-200">
+                <div className="bg-white border rounded-lg p-4 shadow-sm border-slate-200">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Responsável Inicial</span>
                     <p className="text-sm font-medium text-slate-700">{interventionToView.responsavel}</p>
                     <p className="text-xs text-slate-500 mt-1">Iniciado em: {formatBRDate(interventionToView.date)}</p>
                 </div>
-                <div className="bg-white border rounded-xl p-4 shadow-sm border-slate-200">
+                <div className="bg-white border rounded-lg p-4 shadow-sm border-slate-200">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Prazo de Resolução</span>
                     <div className={`flex items-center gap-1.5 text-sm font-medium ${interventionToView.status !== "Concluído" && isOverdue(interventionToView.pendingUntil)
                         ? "text-red-600 font-bold"
@@ -84,14 +84,14 @@ export function InterventionDetailView({ interventionToView, studentName, onAddU
                         )}
                         {formatBRDate(interventionToView.pendingUntil) || "Sem prazo definido"}
                         {interventionToView.status !== "Concluído" && isOverdue(interventionToView.pendingUntil) && (
-                            <span className="ml-1 text-[10px] px-2 py-0.5 rounded bg-red-100 text-red-700 uppercase tracking-widest font-bold">Em Atraso</span>
+                            <span className="ml-1 text-xs px-2 py-0.5 rounded bg-red-100 text-red-700 uppercase tracking-widest font-bold">Em Atraso</span>
                         )}
                     </div>
                 </div>
             </div>
 
             {/* Status Tracking Steps e Gestão da Tratativa */}
-            <div className="bg-white border rounded-xl p-5 shadow-sm border-slate-200 flex-shrink-0">
+            <div className="bg-white border rounded-lg p-5 shadow-sm border-slate-200 flex-shrink-0">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-5">Acompanhamento e Registros (Timeline)</span>
 
                 <div className="space-y-5 relative before:absolute before:inset-0 before:ml-3 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
@@ -101,12 +101,12 @@ export function InterventionDetailView({ interventionToView, studentName, onAddU
                         <div className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-white bg-indigo-500 text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                             <ClipboardList className="w-3 h-3" />
                         </div>
-                        <div className="bg-slate-50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-xl border border-slate-200 shadow-sm text-sm">
+                        <div className="bg-slate-50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-lg border border-slate-200 shadow-sm text-sm">
                             <div className="flex justify-between items-start mb-1.5">
                                 <strong className="text-slate-700">Ação Prescrita</strong>
-                                <span className="text-[10px] text-slate-400">{formatBRDate(interventionToView.date)}</span>
+                                <span className="text-xs text-slate-400">{formatBRDate(interventionToView.date)}</span>
                             </div>
-                            <p className="text-slate-600 leading-relaxed text-[13px]">Registrado no sistema por {interventionToView.responsavel}.</p>
+                            <p className="text-slate-600 leading-relaxed text-sm">Registrado no sistema por {interventionToView.responsavel}.</p>
                         </div>
                     </div>
 
@@ -116,11 +116,11 @@ export function InterventionDetailView({ interventionToView, studentName, onAddU
                             <div className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-white bg-amber-400 text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                                 <CircleDashed className="w-3 h-3 animate-pulse" />
                             </div>
-                            <div className="bg-amber-50/50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-xl border border-amber-100 shadow-sm text-sm">
+                            <div className="bg-amber-50/50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-lg border border-amber-100 shadow-sm text-sm">
                                 <div className="flex justify-between items-start mb-1.5">
                                     <strong className="text-amber-800">Automação Externa (Sistêmica)</strong>
                                 </div>
-                                <p className="text-amber-700 leading-relaxed text-[13px]">Disparo pendente no Hub do WhatsApp para familiares via n8n.</p>
+                                <p className="text-amber-700 leading-relaxed text-sm">Disparo pendente no Hub do WhatsApp para familiares via n8n.</p>
                             </div>
                         </div>
                     )}
@@ -129,11 +129,11 @@ export function InterventionDetailView({ interventionToView, studentName, onAddU
                             <div className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-white bg-amber-400 text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                                 <CircleDashed className="w-3 h-3 animate-pulse" />
                             </div>
-                            <div className="bg-amber-50/50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-xl border border-amber-100 shadow-sm text-sm">
+                            <div className="bg-amber-50/50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-lg border border-amber-100 shadow-sm text-sm">
                                 <div className="flex justify-between items-start mb-1.5">
                                     <strong className="text-amber-800">Equipe Multidisciplinar (Em Triagem)</strong>
                                 </div>
-                                <p className="text-amber-700 leading-relaxed text-[13px]">Aguardando atribuição do caso entre as especialistas (Psicologia ou Psicopedagogia).</p>
+                                <p className="text-amber-700 leading-relaxed text-sm">Aguardando atribuição do caso entre as especialistas (Psicologia ou Psicopedagogia).</p>
                             </div>
                         </div>
                     )}
@@ -142,11 +142,11 @@ export function InterventionDetailView({ interventionToView, studentName, onAddU
                             <div className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-white bg-amber-400 text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                                 <CircleDashed className="w-3 h-3 animate-pulse" />
                             </div>
-                            <div className="bg-amber-50/50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-xl border border-amber-100 shadow-sm text-sm">
+                            <div className="bg-amber-50/50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-lg border border-amber-100 shadow-sm text-sm">
                                 <div className="flex justify-between items-start mb-1.5">
                                     <strong className="text-amber-800">Equipe Multidisciplinar (Em Triagem)</strong>
                                 </div>
-                                <p className="text-amber-700 leading-relaxed text-[13px]">Aguardando atribuição do caso entre as especialistas (Psicologia ou Psicopedagogia).</p>
+                                <p className="text-amber-700 leading-relaxed text-sm">Aguardando atribuição do caso entre as especialistas (Psicologia ou Psicopedagogia).</p>
                             </div>
                         </div>
                     )}
@@ -155,11 +155,11 @@ export function InterventionDetailView({ interventionToView, studentName, onAddU
                             <div className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-white bg-amber-400 text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                                 <CircleDashed className="w-3 h-3 animate-pulse" />
                             </div>
-                            <div className="bg-amber-50/50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-xl border border-amber-100 shadow-sm text-sm">
+                            <div className="bg-amber-50/50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-lg border border-amber-100 shadow-sm text-sm">
                                 <div className="flex justify-between items-start mb-1.5">
                                     <strong className="text-amber-800">Execução do Corpo Docente</strong>
                                 </div>
-                                <p className="text-amber-700 leading-relaxed text-[13px]">Painel do professor notificado. Aguardando acompanhamento letivo.</p>
+                                <p className="text-amber-700 leading-relaxed text-sm">Painel do professor notificado. Aguardando acompanhamento letivo.</p>
                             </div>
                         </div>
                     )}
@@ -170,12 +170,12 @@ export function InterventionDetailView({ interventionToView, studentName, onAddU
                             <div className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-white bg-emerald-500 text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                                 <CheckCircle2 className="w-3 h-3" />
                             </div>
-                            <div className="bg-white w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-xl border border-slate-200 shadow-sm text-sm">
+                            <div className="bg-white w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-lg border border-slate-200 shadow-sm text-sm">
                                 <div className="flex justify-between items-start mb-1.5">
                                     <strong className="text-slate-700">{update.author}</strong>
-                                    <span className="text-[10px] text-slate-400">{formatBRDate(update.date)} <span className="text-slate-300">|</span> {update.time}</span>
+                                    <span className="text-xs text-slate-400">{formatBRDate(update.date)} <span className="text-slate-300">|</span> {update.time}</span>
                                 </div>
-                                <p className="text-slate-600 leading-relaxed text-[13px]">{update.content}</p>
+                                <p className="text-slate-600 leading-relaxed text-sm">{update.content}</p>
                             </div>
                         </div>
                     ))}
@@ -186,7 +186,7 @@ export function InterventionDetailView({ interventionToView, studentName, onAddU
                             <div className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-white bg-slate-100 text-slate-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 mt-1">
                                 <Plus className="w-3 h-3" />
                             </div>
-                            <div className="bg-slate-50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-xl border border-dashed border-slate-300 shadow-sm text-sm">
+                            <div className="bg-slate-50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-lg border border-dashed border-slate-300 shadow-sm text-sm">
                                 <p className="font-semibold text-slate-700 mb-2 text-xs flex items-center gap-1.5">
                                     Adicionar Andamento/Nota
                                 </p>
@@ -226,11 +226,11 @@ export function InterventionDetailView({ interventionToView, studentName, onAddU
                             <div className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-white bg-slate-800 text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                                 <CheckCircle2 className="w-3 h-3" />
                             </div>
-                            <div className="bg-slate-50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-xl border border-slate-200 shadow-sm text-sm">
+                            <div className="bg-slate-50 w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-3 rounded-lg border border-slate-200 shadow-sm text-sm">
                                 <div className="flex justify-between items-start mb-1.5">
                                     <strong className="text-slate-800">Ciclo Concluído</strong>
                                 </div>
-                                <p className="text-slate-600 leading-relaxed text-[13px]">A tratativa foi finalizada e anexada com ata de encerramento local.</p>
+                                <p className="text-slate-600 leading-relaxed text-sm">A tratativa foi finalizada e anexada com ata de encerramento local.</p>
                             </div>
                         </div>
                     )}
@@ -240,7 +240,7 @@ export function InterventionDetailView({ interventionToView, studentName, onAddU
             {interventionToView.status === "Concluído" && interventionToView.resolutionAta && (
                 <div className="border-t pt-4 space-y-2 flex-shrink-0">
                     <p className="font-medium text-sm text-muted-foreground">Ata de Resolução Final</p>
-                    <p className="text-[13px] text-slate-700 leading-relaxed bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 whitespace-pre-wrap">
+                    <p className="text-sm text-slate-700 leading-relaxed bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 whitespace-pre-wrap">
                         {interventionToView.resolutionAta}
                     </p>
                 </div>
