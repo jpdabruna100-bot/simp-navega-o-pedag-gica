@@ -95,6 +95,9 @@ export default function StudentList() {
             </h3>
             <p className="text-xs text-muted-foreground">
               {turmaName} • Mat: {student.matricula}
+              {student.assessments?.length != null && student.assessments.length > 0 && (
+                <> · {student.assessments.length} {student.assessments.length === 1 ? "avaliação" : "avaliações"}</>
+              )}
             </p>
           </div>
           <RiskBadge level={student.riskLevel} />
@@ -132,6 +135,15 @@ export default function StudentList() {
               Encaminhado
             </Badge>
           )}
+          {student.assessments?.length > 0 && (
+            <Badge
+              variant="outline"
+              className="text-[10px] bg-slate-100 text-slate-600 border-slate-200"
+            >
+              <FileText className="w-3 h-3 mr-0.5" />
+              {student.assessments.length} {student.assessments.length === 1 ? "avaliação" : "avaliações"}
+            </Badge>
+          )}
         </div>
 
         {student.peiRecomendado && (
@@ -157,7 +169,12 @@ export default function StudentList() {
       >
         <div>
           <p className="font-medium">{student.name}</p>
-          <p className="text-xs text-muted-foreground">Mat: {student.matricula}</p>
+          <p className="text-xs text-muted-foreground">
+            Mat: {student.matricula}
+            {student.assessments?.length != null && student.assessments.length > 0 && (
+              <> · {student.assessments.length} aval.</>
+            )}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {student.peiRecomendado && (
@@ -179,6 +196,11 @@ export default function StudentList() {
             <span className="text-xs bg-accent/10 text-accent px-2 py-0.5 rounded-full">
               Encaminhado
             </span>
+          )}
+          {student.assessments?.length > 0 && (
+            <Badge variant="outline" className="text-[10px] bg-slate-100 text-slate-600">
+              {student.assessments.length} aval.
+            </Badge>
           )}
           <RiskBadge level={student.riskLevel} />
         </div>

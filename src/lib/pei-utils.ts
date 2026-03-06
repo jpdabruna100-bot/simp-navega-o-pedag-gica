@@ -264,9 +264,64 @@ function estrategiasDaEquipe(peiRecomendado?: { sugestoes?: string }): string[] 
   return list;
 }
 
+/** Converte PEI existente (formato legado ou guiado) em PEIFormState para edição */
+export function peiToFormState(pei: NonNullable<Student["pei"]>): PEIFormState {
+  const areas: AreaCurricular[] = ["linguagens", "matematica", "cienciasHumanas", "cienciasNatureza"];
+  const vazioArea = Object.fromEntries(areas.map((a) => [a, ""])) as Record<AreaCurricular, string>;
+
+  const estrategiasArr =
+    typeof pei.estrategias === "string"
+      ? pei.estrategias.split(/[.;]/).map((s) => s.trim()).filter(Boolean)
+      : Array.isArray(pei.estrategias)
+        ? pei.estrategias.filter(Boolean)
+        : [];
+
+  const temFormatoGuiado =
+    (pei.capacidades?.length ?? 0) > 0 ||
+    (pei.oQueSabe && Object.values(pei.oQueSabe).some(Boolean)) ||
+    (pei.objetivosAcademicos && Object.values(pei.objetivosAcademicos).some(Boolean));
+
+  const observacoesVal =
+    "observacoes" in pei && pei.observacoes
+      ? String(pei.observacoes)
+      : !temFormatoGuiado && pei.objetivos
+        ? pei.objetivos
+        : "";
+
+  return {
+    capacidades: pei.capacidades?.filter(Boolean) ?? [],
+    oQueSabe: pei.oQueSabe
+      ? { ...vazioArea, ...pei.oQueSabe }
+      : vazioArea,
+    oQueGosta: pei.oQueGosta?.filter(Boolean) ?? [],
+    necessidades: pei.necessidades?.filter(Boolean) ?? [],
+    recursos: pei.recursos?.filter(Boolean) ?? [],
+    estrategias: estrategiasArr.length > 0 ? estrategiasArr : ["Acompanhamento e apoio contínuo."],
+    objetivosAcademicos: pei.objetivosAcademicos
+      ? { ...vazioArea, ...pei.objetivosAcademicos }
+      : vazioArea,
+    objetivosSociais: pei.objetivosSociais?.filter(Boolean) ?? [],
+    avaliacaoTipo: "avaliacaoTipo" in pei && pei.avaliacaoTipo ? String(pei.avaliacaoTipo) : AVALIACAO_OPCOES[0],
+    avaliacaoObservacao: "avaliacaoObservacao" in pei && pei.avaliacaoObservacao ? String(pei.avaliacaoObservacao) : "",
+    observacoes: observacoesVal,
+    metasCurtoPrazo: pei.metasCurtoPrazo
+      ? { ...vazioArea, ...pei.metasCurtoPrazo }
+      : vazioArea,
+    metasLongoPrazo: pei.metasLongoPrazo
+      ? { ...vazioArea, ...pei.metasLongoPrazo }
+      : vazioArea,
+    responsavel: pei.responsavel || "Professor regente",
+    dataRevisao: pei.dataRevisao || new Date().toISOString().split("T")[0],
+  };
+}
+
 /** Inicializa o estado do formulário a partir do aluno */
 export function preencherFormAPartirDeAluno(student: Student): PEIFormState {
-  const lastAssessment = student.assessments[student.assessments.length - 1];
+  if (student.pei) {
+    return peiToFormState(student.pei);
+  }
+
+  const lastAssessment = student.assessments?.[student.assessments.length - 1];
   const peiRec = student.peiRecomendado;
 
   const capacidades = sugerirCapacidades(lastAssessment, peiRec);

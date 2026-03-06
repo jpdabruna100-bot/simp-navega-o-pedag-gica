@@ -4,7 +4,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ClipboardList, Printer } from "lucide-react";
+import { ClipboardList, Pencil, Printer } from "lucide-react";
 import { formatBRDate } from "@/lib/utils";
 import { AREAS_CURRICULARES } from "@/lib/pei-utils";
 import type { Student } from "@/data/mockData";
@@ -12,9 +12,11 @@ import type { Student } from "@/data/mockData";
 interface PEIDisplayCardProps {
   studentName: string;
   pei: NonNullable<Student["pei"]>;
+  /** Permite edição do PEI pelo professor */
+  onEdit?: () => void;
 }
 
-export function PEIDisplayCard({ studentName, pei }: PEIDisplayCardProps) {
+export function PEIDisplayCard({ studentName, pei, onEdit }: PEIDisplayCardProps) {
   const handlePrint = () => {
     const prevTitle = document.title;
     document.title = `PEI - ${studentName}`;
@@ -53,15 +55,18 @@ export function PEIDisplayCard({ studentName, pei }: PEIDisplayCardProps) {
               {formatBRDate(pei.dataRevisao)}
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePrint}
-            className="shrink-0 print:hidden gap-2"
-          >
-            <Printer className="h-4 w-4" />
-            Imprimir PEI
-          </Button>
+          <div className="flex gap-2 shrink-0 print:hidden">
+            {onEdit != null && (
+              <Button variant="default" size="sm" onClick={onEdit} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+                <Pencil className="h-4 w-4" />
+                Editar PEI
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={handlePrint} className="gap-2">
+              <Printer className="h-4 w-4" />
+              Imprimir PEI
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="text-sm space-y-4">

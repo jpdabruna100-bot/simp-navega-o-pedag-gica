@@ -1,4 +1,5 @@
 import { useApp } from "@/context/AppContext";
+import { useCriticalOccurrences } from "@/hooks/useSupabaseData";
 import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,30 +9,43 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export default function CoordinationDashboard() {
   const { students, turmas, isLoading } = useApp();
+  const { data: criticalOccurrences = [] } = useCriticalOccurrences();
   const navigate = useNavigate();
 
-  // Mock de Alerta Crítico não lido (Isso viria do Supabase)
   const [showCriticalAlert, setShowCriticalAlert] = useState(false);
-  const [activeAlert] = useState({
-    aluno: "Laura Barbosa",
-    turma: "1º Ano A",
-    professor: "Profa. Larissa",
-    data: new Date().toLocaleDateString('pt-BR'),
-    sintomas: ["Mudança brusca de humor", "Isolamento severo social"],
-    descricao: "A aluna chegou chorando muito e recusou-se a falar com os colegas. Notamos que ela estava evitando o contato e com sinais de medo excessivo durante o recreio livre."
-  });
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<string>>(new Set());
+  const hasAutoShownRef = useRef(false);
+
+  const activeOccurrences = criticalOccurrences.filter((o) => !dismissedAlertIds.has(o.id));
+  const firstActive = activeOccurrences[0];
 
   useEffect(() => {
-    // Simulando o pull do banco de dados na montagem
-    const timer = setTimeout(() => {
+    if (activeOccurrences.length > 0 && !hasAutoShownRef.current) {
+      hasAutoShownRef.current = true;
       setShowCriticalAlert(true);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, []);
+    }
+  }, [activeOccurrences.length]);
+  const activeAlert = firstActive
+    ? (() => {
+        const s = students.find((st) => st.id === firstActive.studentId);
+        const turma = turmas?.find((t) => t?.id === s?.turmaId);
+        return {
+          id: firstActive.id,
+          aluno: s?.name ?? "Aluno",
+          turma: turma?.name ?? "—",
+          professor: firstActive.reportedBy ?? "Professor",
+          data: firstActive.reportedAt
+            ? new Date(firstActive.reportedAt).toLocaleDateString("pt-BR")
+            : new Date().toLocaleDateString("pt-BR"),
+          sintomas: firstActive.categories,
+          descricao: firstActive.description,
+        };
+      })()
+    : null;
 
   const highRisk = students.filter((s) => s.riskLevel === "high").length;
   const medRisk = students.filter((s) => s.riskLevel === "medium").length;
@@ -90,65 +104,77 @@ export default function CoordinationDashboard() {
           </div>
         </div>
 
-        <Dialog open={showCriticalAlert} onOpenChange={setShowCriticalAlert}>
+        <Dialog open={showCriticalAlert && !!activeAlert} onOpenChange={setShowCriticalAlert}>
           <DialogContent className="sm:max-w-[550px] border-red-500 shadow-red-900/20 shadow-2xl">
-            <DialogHeader>
-              <DialogTitle className="text-2xl text-red-700 flex items-center gap-3">
-                <ShieldAlert className="h-8 w-8 animate-pulse text-red-600" />
-                Alerta Crítico Interceptado
-              </DialogTitle>
-              <DialogDescription className="text-base text-red-950/70 font-medium pt-2">
-                O fluxo normal foi interrompido porque um professor reportou uma Ocorrência Urgente de risco iminente ou proteção à criança.
-              </DialogDescription>
-            </DialogHeader>
+            {activeAlert && (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-2xl text-red-700 flex items-center gap-3">
+                    <ShieldAlert className="h-8 w-8 animate-pulse text-red-600" />
+                    Alerta Crítico Interceptado
+                  </DialogTitle>
+                  <DialogDescription className="text-base text-red-950/70 font-medium pt-2">
+                    O fluxo normal foi interrompido porque um professor reportou uma Ocorrência Urgente de risco iminente ou proteção à criança.
+                  </DialogDescription>
+                </DialogHeader>
 
-            <div className="bg-red-50/50 p-4 rounded-lg border border-red-100 my-2 space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-red-900/60 block font-medium">Aluno(a) em risco</span>
-                  <span className="font-bold text-slate-800 text-base">{activeAlert.aluno} <span className="text-xs font-normal text-slate-500">({activeAlert.turma})</span></span>
+                <div className="bg-red-50/50 p-4 rounded-lg border border-red-100 my-2 space-y-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-red-900/60 block font-medium">Aluno(a) em risco</span>
+                      <span className="font-bold text-slate-800 text-base">{activeAlert.aluno} <span className="text-xs font-normal text-slate-500">({activeAlert.turma})</span></span>
+                    </div>
+                    <div>
+                      <span className="text-red-900/60 block font-medium">Reportado por</span>
+                      <span className="font-bold text-slate-800 text-base">{activeAlert.professor}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-red-900/60 block font-medium mb-1">Fatores Sinalizados</span>
+                    <div className="flex flex-wrap gap-2">
+                      {activeAlert.sintomas.map((s) => (
+                        <span key={s} className="bg-red-100 text-red-800 text-xs px-2.5 py-1 rounded-md font-semibold border border-red-200">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-red-900/60 block font-medium mb-1">Detalhamento do Professor</span>
+                    <p className="text-sm text-slate-700 bg-white p-3 rounded-md border border-red-100 shadow-sm italic leading-relaxed">
+                      &quot;{activeAlert.descricao}&quot;
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-red-900/60 block font-medium">Reportado por</span>
-                  <span className="font-bold text-slate-800 text-base">{activeAlert.professor}</span>
-                </div>
-              </div>
 
-              <div>
-                <span className="text-red-900/60 block font-medium mb-1">Fatores Sinalizados</span>
-                <div className="flex flex-wrap gap-2">
-                  {activeAlert.sintomas.map(s => (
-                    <span key={s} className="bg-red-100 text-red-800 text-xs px-2.5 py-1 rounded-md font-semibold border border-red-200">
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <span className="text-red-900/60 block font-medium mb-1">Detalhamento do Professor</span>
-                <p className="text-sm text-slate-700 bg-white p-3 rounded-md border border-red-100 shadow-sm italic leading-relaxed">
-                  "{activeAlert.descricao}"
-                </p>
-              </div>
-            </div>
-
-            <DialogFooter className="sm:justify-between mt-2 flex-col sm:flex-row gap-3">
-              <Button variant="ghost" onClick={() => setShowCriticalAlert(false)} className="text-slate-500">
-                Lerei depois
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setShowCriticalAlert(false);
-                  navigate('/coordenacao/ocorrencias/OC-1');
-                }}
-                className="bg-red-600 hover:bg-red-700 font-bold gap-2"
-              >
-                Assumir Caso e Tratar Agora
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </DialogFooter>
+                <DialogFooter className="sm:justify-between mt-2 flex-col sm:flex-row gap-3">
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      if (activeAlert?.id) setDismissedAlertIds((prev) => new Set(prev).add(activeAlert.id));
+                      setShowCriticalAlert(false);
+                    }}
+                    className="text-slate-500"
+                  >
+                    Lerei depois
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      if (activeAlert?.id) setDismissedAlertIds((prev) => new Set(prev).add(activeAlert.id));
+                      setShowCriticalAlert(false);
+                      navigate("/coordenacao/intervencoes?filtro=ocorrencias");
+                    }}
+                    className="bg-red-600 hover:bg-red-700 font-bold gap-2"
+                  >
+                    Assumir Caso e Tratar Agora
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
           </DialogContent>
         </Dialog>
 
@@ -157,15 +183,17 @@ export default function CoordinationDashboard() {
           {/* Card 0: Alerta Urgente (Gestão de Risco) */}
           <Card
             className="border-l-[6px] border-l-rose-600 cursor-pointer shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 group bg-gradient-to-br from-rose-50 to-rose-100/50"
-            onClick={() => navigate('/coordenacao/ocorrencias/OC-1')}
+            onClick={() => navigate("/coordenacao/intervencoes?filtro=ocorrencias")}
           >
             <CardContent className="p-5 flex flex-col h-full justify-between gap-4">
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-rose-900 font-bold text-sm">Alerta Urgente Ativo</h3>
                   <div className="relative inline-block mt-2">
-                    <span className="animate-ping absolute top-1 -left-1 h-8 w-8 rounded-full bg-rose-400 opacity-40"></span>
-                    <p className="text-5xl font-black text-rose-700 relative">1</p>
+                    {criticalOccurrences.length > 0 && (
+                      <span className="animate-ping absolute top-1 -left-1 h-8 w-8 rounded-full bg-rose-400 opacity-40"></span>
+                    )}
+                    <p className="text-5xl font-black text-rose-700 relative">{criticalOccurrences.length}</p>
                   </div>
                 </div>
                 <div className="bg-rose-200/50 p-2 rounded-lg">

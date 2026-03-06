@@ -40,6 +40,52 @@ export async function insertProfile(profile: ProfileInsert): Promise<User> {
   return { id: r.id, name: r.name, email: r.email, role: r.role as User["role"] };
 }
 
+export interface CriticalOccurrence {
+  id: string;
+  studentId: string;
+  status: "Em Tratativa" | "Resolvido";
+  categories: string[];
+  description: string;
+  reportedBy: string | null;
+  reportedAt: string | null;
+}
+
+export async function fetchCriticalOccurrences(): Promise<CriticalOccurrence[]> {
+  const { data, error } = await supabase
+    .from("critical_occurrences")
+    .select("id, student_id, status, categories, description, reported_by, reported_at")
+    .eq("status", "Em Tratativa")
+    .order("reported_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    studentId: r.student_id,
+    status: r.status as CriticalOccurrence["status"],
+    categories: r.categories ?? [],
+    description: r.description,
+    reportedBy: r.reported_by ?? null,
+    reportedAt: r.reported_at ?? null,
+  }));
+}
+
+/** Retorna todas as ocorrências críticas (Em Tratativa + Resolvido) para listagem e filtro */
+export async function fetchCriticalOccurrencesAll(): Promise<CriticalOccurrence[]> {
+  const { data, error } = await supabase
+    .from("critical_occurrences")
+    .select("id, student_id, status, categories, description, reported_by, reported_at")
+    .order("reported_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    studentId: r.student_id,
+    status: r.status as CriticalOccurrence["status"],
+    categories: r.categories ?? [],
+    description: r.description,
+    reportedBy: r.reported_by ?? null,
+    reportedAt: r.reported_at ?? null,
+  }));
+}
+
 export async function fetchTurmas(): Promise<Turma[]> {
   const { data, error } = await supabase.from("turmas").select("*").order("name");
   if (error) throw error;

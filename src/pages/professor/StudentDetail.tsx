@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { PEIWizard } from "@/components/PEIWizard";
 import { PEIDisplayCard } from "@/components/PEIDisplayCard";
 import { peiElaboradoToLegado } from "@/lib/pei-utils";
-import { updateStudent, insertTimelineEvent, updatePsychAssessment } from "@/lib/supabase-mutations";
+import { updateStudent, insertTimelineEvent, updatePsychAssessment, insertCriticalOccurrence } from "@/lib/supabase-mutations";
 import { addEmAndamento, removeEmAndamento } from "@/lib/professor-em-andamento";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
@@ -45,7 +45,7 @@ export default function StudentDetail() {
   const turma = turmas?.find((t) => t.id === student.turmaId);
   const lastAssessment = student.assessments[student.assessments.length - 1];
 
-  const handleSendAlert = () => {
+  const handleSendAlert = async () => {
     if (alertType.length === 0) {
       toast({ title: "Selecione pelo menos uma categoria de ocorrência.", variant: "destructive" });
       return;
@@ -55,21 +55,27 @@ export default function StudentDetail() {
       toast({ title: "A descrição detalhada da ocorrência é obrigatória.", variant: "destructive" });
       return;
     }
-    toast({
-      title: "🚨 Alerta Crítico Enviado!",
-      description: "A coordenação foi notificada imediatamente e o caso já consta na central deles.",
-      variant: "destructive"
-    });
-    setIsAlertOpen(false);
-    setAlertText("");
-    setAlertType([]);
-    setActiveAlertState("novo");
 
-    // Simula a Coordenação Assumindo o Caso depois de 3 segundos
-    setTimeout(() => {
-      setActiveAlertState("em_tratativa");
-      toast({ title: "Atualização de Status", description: "A coordenação assumiu a tratativa deste alerta.", className: "bg-blue-600 text-white border-blue-700" });
-    }, 4500);
+    try {
+      await insertCriticalOccurrence(student.id, {
+        categories: alertType,
+        description: alertText.trim(),
+        reportedBy: "Professor",
+      });
+      await updateStudent(student.id, { critical_alert: true });
+      await refetchStudents();
+      toast({
+        title: "🚨 Alerta Crítico Enviado!",
+        description: "A coordenação foi notificada imediatamente e o caso já consta na central deles.",
+        variant: "destructive",
+      });
+      setIsAlertOpen(false);
+      setAlertText("");
+      setAlertType([]);
+      setActiveAlertState("novo");
+    } catch (e) {
+      toast({ title: "Erro ao enviar alerta", description: String(e), variant: "destructive" });
+    }
   };
 
   const toggleAlertType = (type: string) => {
@@ -127,7 +133,14 @@ export default function StudentDetail() {
         </div>
 
         {student.pei && (
-          <PEIDisplayCard studentName={student.name} pei={student.pei} />
+          <PEIDisplayCard
+            studentName={student.name}
+            pei={student.pei}
+            onEdit={() => {
+              addEmAndamento(student.id);
+              setShowPeiWizard(true);
+            }}
+          />
         )}
 
         {student.assessments.length > 0 && (

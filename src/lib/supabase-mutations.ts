@@ -42,6 +42,7 @@ export async function updateStudent(studentId: string, data: {
   acompanhamento_externo?: string | null;
   psych_referral?: boolean;
   psych_referral_reason?: string | null;
+  critical_alert?: boolean;
 }): Promise<void> {
   const { error } = await supabase.from("students").update(data).eq("id", studentId);
   if (error) throw error;
@@ -191,6 +192,21 @@ export async function upsertFamilyContact(studentId: string, data: {
     });
     if (error) throw error;
   }
+}
+
+export async function insertCriticalOccurrence(studentId: string, data: {
+  categories: string[];
+  description: string;
+  reportedBy?: string | null;
+}): Promise<void> {
+  const { error } = await supabase.from("critical_occurrences").insert({
+    student_id: studentId,
+    categories: data.categories,
+    description: data.description,
+    reported_by: data.reportedBy ?? null,
+    status: "Em Tratativa",
+  });
+  if (error) throw error;
 }
 
 export async function insertStudentDocument(studentId: string, doc: {

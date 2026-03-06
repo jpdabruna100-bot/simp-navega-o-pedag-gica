@@ -4,24 +4,32 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, User, Calendar, MessageSquare, PhoneCall, Brain, Scale, CheckCircle2, FileText } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useApp } from "@/context/AppContext";
+import { useCriticalOccurrencesAll } from "@/hooks/useSupabaseData";
 
 export default function CriticalOccurrenceDetail() {
     const navigate = useNavigate();
-    const { students } = useApp();
+    const { students, turmas } = useApp();
+    const { data: criticalOccurrences = [], isLoading: loadingOccurrences } = useCriticalOccurrencesAll();
     const studentS1 = students.find((s) => s.id === "s1");
 
     // Busca na linha do tempo se o caso já foi tratado e o professor já respondeu
     const followUpEvent = studentS1?.timeline.find(e => e.description.startsWith("Feedback Pós-Crise"));
-    const { id } = useParams(); // No cenário real usaríamos para buscar do DB
+    const { id } = useParams();
+    const rawOccurrence = id ? criticalOccurrences.find((o) => o.id === id) : null;
+    const student = rawOccurrence ? students.find((s) => s.id === rawOccurrence.studentId) : null;
+    const turma = student ? turmas?.find((t) => t.id === student.turmaId) : null;
     const [resolutionText, setResolutionText] = useState("");
     const [isResolved, setIsResolved] = useState(false);
+    useEffect(() => {
+        if (rawOccurrence?.status === "Resolvido") setIsResolved(true);
+    }, [rawOccurrence?.status]);
 
     // Estado do Mock para Gerenciamento da Crise
     const [activeTasks, setActiveTasks] = useState<string[]>([]);
@@ -37,17 +45,18 @@ export default function CriticalOccurrenceDetail() {
     const [returnNote, setReturnNote] = useState("");
     const [currentResolvingTask, setCurrentResolvingTask] = useState("");
 
-    // Mock Data (Vindo direto do alerta interceptado no Dashboard)
-    const occurrence = {
-        id: id || "OC-1",
-        status: isResolved ? "Resolvido" : "Em Tratativa",
-        student: "Laura Barbosa",
-        turma: "1º Ano A",
-        teacher: "Profa. Larissa",
-        date: new Date().toLocaleDateString('pt-BR'),
-        categories: ["Mudança brusca de humor", "Isolamento severo social"],
-        description: "A aluna chegou chorando muito e recusou-se a falar com os colegas. Notamos que ela estava evitando o contato e com sinais de medo excessivo durante o recreio livre."
-    };
+    const occurrence = rawOccurrence
+        ? {
+            id: rawOccurrence.id,
+            status: (isResolved ? "Resolvido" : rawOccurrence.status) as "Em Tratativa" | "Resolvido",
+            student: student?.name ?? "Aluno",
+            turma: turma?.name ?? "—",
+            teacher: rawOccurrence.reportedBy ?? "Professor",
+            date: rawOccurrence.reportedAt ? formatBRDate(rawOccurrence.reportedAt.split("T")[0]) : new Date().toLocaleDateString("pt-BR"),
+            categories: rawOccurrence.categories,
+            description: rawOccurrence.description,
+        }
+        : null;
 
     const handleAction = (actionName: string, taskDependency?: string) => {
         const timeNow = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -125,6 +134,30 @@ export default function CriticalOccurrenceDetail() {
         setIsResolved(true);
         toast({ title: "Caso Encerrado", description: "Ata consolidada e anexada ao histórico permanente do aluno.", className: "bg-emerald-600 text-white" });
     };
+
+    if (!loadingOccurrences && !occurrence) {
+        return (
+            <Layout>
+                <div className="space-y-6 max-w-5xl mx-auto pb-10">
+                    <Button variant="ghost" size="sm" onClick={() => navigate("/coordenacao/intervencoes?filtro=ocorrencias")} className="-ml-2">
+                        &larr; Voltar à lista
+                    </Button>
+                    <p className="text-muted-foreground">
+                        {id ? "Ocorrência não encontrada." : "Nenhuma ocorrência selecionada."}
+                    </p>
+                </div>
+            </Layout>
+        );
+    }
+    if (loadingOccurrences) {
+        return (
+            <Layout>
+                <div className="flex justify-center py-12">
+                    <p className="text-muted-foreground">Carregando...</p>
+                </div>
+            </Layout>
+        );
+    }
 
     return (
         <Layout>

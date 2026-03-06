@@ -24,6 +24,8 @@ Esta pasta concentra **planos** e **templates** para implementar novas features 
 | [2026-03-03-plano-congruencia-rotas-perfis.md](2026-03-03-plano-congruencia-rotas-perfis.md) | Plano de congruência visual e funcional entre rotas (Professor, Coordenação, Psicologia, Diretoria). |
 | [2026-03-03-plano-tabelas-supabase-mcp.md](2026-03-03-plano-tabelas-supabase-mcp.md) | Plano para criar tabelas no Supabase via MCP, a partir das interfaces do domínio (mockData). |
 | [2026-03-04-plano-painel-professor-turma-kanban.md](2026-03-04-plano-painel-professor-turma-kanban.md) | Painel do Professor: visão Kanban da turma, avaliações mensais, PEI pendente, notificações e produtividade. |
+| [2026-03-04-investigacao-debug-professor.md](2026-03-04-investigacao-debug-professor.md) | Investigação e debug: erro ao salvar avaliação, contagem no card, PEI editável, ocorrência crítica ao coordenador. |
+| [2026-03-06-plano-mapeamento-fluxos-notificacoes.md](2026-03-06-plano-mapeamento-fluxos-notificacoes.md) | Mapeamento de fluxos Professor ↔ Coordenador ↔ Equipe Multidisciplinar; notificação PEI elaborado; sinalização ao coordenador quando equipe conclui tarefas. |
 
 ## Convenção de nomes para planos
 

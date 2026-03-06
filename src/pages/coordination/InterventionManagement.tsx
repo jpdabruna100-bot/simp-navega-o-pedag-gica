@@ -1,6 +1,8 @@
 import { useApp } from "@/context/AppContext";
 import { useState, useMemo } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link, useNavigate } from "react-router-dom";
+import { useCriticalOccurrencesAll } from "@/hooks/useSupabaseData";
+import type { CriticalOccurrence } from "@/lib/supabase-queries";
 import Layout from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ContingencyPlanModal } from "@/components/ContingencyPlanModal";
 import { toast } from "@/hooks/use-toast";
-import { Clock, NotebookPen, FileText, CheckCircle2, Eye, ClipboardList, AlertCircle } from "lucide-react";
+import { Clock, NotebookPen, FileText, CheckCircle2, Eye, ClipboardList, AlertCircle, ShieldAlert } from "lucide-react";
 import { InterventionDetailView } from "@/components/InterventionDetailView";
 import { Textarea } from "@/components/ui/textarea";
 import { formatBRDate } from "@/lib/utils";
@@ -23,7 +25,9 @@ const isOverdue = (dateStr?: string) => {
 };
 
 export default function InterventionManagement() {
-    const { students, refetchStudents } = useApp();
+    const { students, refetchStudents, turmas } = useApp();
+    const { data: criticalOccurrences = [] } = useCriticalOccurrencesAll();
+    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const preSelectedStudentId = searchParams.get("aluno");
 
@@ -60,6 +64,18 @@ export default function InterventionManagement() {
 
         return interventions;
     }, [students, filtroNavegacao]);
+
+    // Ocorrências Críticas (quando filtro=ocorrencias)
+    const occurrenceStages = useMemo(() => ({
+        emTratativa: criticalOccurrences.filter((o) => o.status === "Em Tratativa"),
+        resolvido: criticalOccurrences.filter((o) => o.status === "Resolvido"),
+    }), [criticalOccurrences]);
+
+    const getStudentName = (studentId: string) => students.find((s) => s.id === studentId)?.name ?? "Aluno";
+    const getTurmaName = (studentId: string) => {
+        const s = students.find((st) => st.id === studentId);
+        return turmas?.find((t) => t.id === s?.turmaId)?.name ?? "—";
+    };
 
     // Kanban Columns Data
     const kanbanStages = {
@@ -146,6 +162,42 @@ export default function InterventionManagement() {
             toast({ title: "Erro ao registrar andamento", description: String(e), variant: "destructive" });
         }
     };
+
+    // Render Occurrence Card (para filtro=ocorrencias)
+    const OccurrenceCard = ({ occurrence }: { occurrence: CriticalOccurrence }) => (
+        <Card
+            className="mb-3 hover:shadow-md transition-all cursor-pointer border-rose-200 bg-rose-50/30"
+            onClick={() => navigate(`/coordenacao/ocorrencias/${occurrence.id}`)}
+        >
+            <CardContent className="p-4 flex flex-col gap-2">
+                <div className="flex justify-between items-start">
+                    <span className="font-semibold text-sm leading-tight text-rose-900">
+                        {getStudentName(occurrence.studentId)}
+                    </span>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-rose-300 bg-rose-100 text-rose-800">
+                        {occurrence.status === "Em Tratativa" ? "Em Tratativa" : "Resolvido"}
+                    </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">{getTurmaName(occurrence.studentId)}</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                    {occurrence.categories.slice(0, 3).map((c) => (
+                        <span key={c} className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded">
+                            {c}
+                        </span>
+                    ))}
+                </div>
+                <p className="text-[11px] text-slate-600 line-clamp-2 mt-1">{occurrence.description}</p>
+                <p className="text-[10px] text-slate-500 mt-1">
+                    {occurrence.reportedBy ?? "Professor"} · {occurrence.reportedAt ? formatBRDate(occurrence.reportedAt.split("T")[0]) : "—"}
+                </p>
+                <Button size="sm" className="w-full text-xs h-7 mt-2 bg-rose-600 hover:bg-rose-700" variant="default"
+                    onClick={(e) => { e.stopPropagation(); navigate(`/coordenacao/ocorrencias/${occurrence.id}`); }}
+                >
+                    <ShieldAlert className="h-3 w-3 mr-1" /> Abrir Dossiê
+                </Button>
+            </CardContent>
+        </Card>
+    );
 
     // Render Kanban Card
     const KanbanCard = ({ intervention }: { intervention: typeof allInterventions[0] }) => (
@@ -280,6 +332,15 @@ export default function InterventionManagement() {
                         Prioridade Alta
                     </Button>
                     <Button
+                        variant={filtroNavegacao === "ocorrencias" ? "default" : "outline"}
+                        size="sm"
+                        className={`h-8 rounded-full px-4 text-xs ${filtroNavegacao === "ocorrencias" ? "bg-rose-600 hover:bg-rose-700" : "text-slate-600 border-slate-200 bg-white"}`}
+                        onClick={() => setSearchParams({ filtro: "ocorrencias" })}
+                    >
+                        <ShieldAlert className="h-3 w-3 mr-1" />
+                        Ocorrências Críticas
+                    </Button>
+                    <Button
                         variant={filtroNavegacao === "psicologia" ? "default" : "outline"}
                         size="sm"
                         className={`h-8 rounded-full px-4 text-xs ${filtroNavegacao === "psicologia" ? "bg-blue-600 hover:bg-blue-700 text-white" : "text-slate-600 border-slate-200 bg-white"}`}
@@ -313,9 +374,42 @@ export default function InterventionManagement() {
                     </Button>
                 </div>
 
-                {/* Kanban Board */}
+                {/* Kanban Board ou Lista de Ocorrências Críticas */}
                 <div className="flex flex-col md:flex-row gap-6 overflow-x-auto pb-4">
 
+                    {filtroNavegacao === "ocorrencias" ? (
+                        <>
+                            {/* Modo Ocorrências: Em Tratativa */}
+                            <div className="bg-rose-50/50 rounded-xl p-4 border border-rose-200 flex flex-col min-h-[400px] h-[calc(100vh-180px)] min-w-[300px] flex-1">
+                                <div className="flex items-center justify-between mb-4 pb-2 border-b border-rose-200">
+                                    <h2 className="font-semibold text-rose-800 flex items-center gap-2">
+                                        <ShieldAlert className="h-4 w-4 text-rose-600" />
+                                        Em Tratativa
+                                    </h2>
+                                    <Badge variant="secondary" className="bg-rose-100 text-rose-800">{occurrenceStages.emTratativa.length}</Badge>
+                                </div>
+                                <div className="flex-1 overflow-y-auto pr-1">
+                                    {occurrenceStages.emTratativa.map((o) => <OccurrenceCard key={o.id} occurrence={o} />)}
+                                    {occurrenceStages.emTratativa.length === 0 && <p className="text-xs text-center text-muted-foreground py-10">Nenhuma ocorrência em tratativa.</p>}
+                                </div>
+                            </div>
+                            {/* Modo Ocorrências: Resolvidas */}
+                            <div className="bg-slate-50/50 rounded-xl p-4 border flex flex-col min-h-[400px] h-[calc(100vh-180px)] min-w-[300px] flex-1">
+                                <div className="flex items-center justify-between mb-4 pb-2 border-b">
+                                    <h2 className="font-semibold text-slate-700 flex items-center gap-2">
+                                        <div className="w-2.5 h-2.5 rounded-full bg-risk-low"></div>
+                                        Resolvidas
+                                    </h2>
+                                    <Badge variant="secondary">{occurrenceStages.resolvido.length}</Badge>
+                                </div>
+                                <div className="flex-1 overflow-y-auto pr-1">
+                                    {occurrenceStages.resolvido.map((o) => <OccurrenceCard key={o.id} occurrence={o} />)}
+                                    {occurrenceStages.resolvido.length === 0 && <p className="text-xs text-center text-muted-foreground py-10">Nenhuma ocorrência resolvida.</p>}
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <>
                     {/* Column 1: Aguardando Ação */}
                     <div className="bg-slate-50/50 rounded-xl p-4 border flex flex-col min-h-[400px] h-[calc(100vh-180px)] min-w-[300px] flex-1">
                         <div className="flex items-center justify-between mb-4 pb-2 border-b">
@@ -358,6 +452,8 @@ export default function InterventionManagement() {
                             {kanbanStages.concluido.map(i => <KanbanCard key={i.id} intervention={i} />)}
                         </div>
                     </div>
+                        </>
+                    )}
 
                 </div>
             </div>
