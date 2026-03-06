@@ -1,5 +1,6 @@
 import { useApp } from "@/context/AppContext";
-import { useState, useEffect } from "react";
+import { formatBRDate } from "@/lib/utils";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
@@ -7,10 +8,10 @@ import { RiskFilterButtons } from "@/components/RiskFilterButtons";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RiskLevel, getPsychStatus, Student } from "@/data/mockData";
+import { ShieldAlert, CheckCircle2, UserPlus, FileSearch, HeartHandshake, ClipboardList, FileCheck, ArrowRight } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { RiskLevel, getPsychStatus, Student } from "@/data/mockData";
-import { Brain, ShieldAlert, ArrowRight, NotebookPen, Clock, CheckCircle2, UserPlus, FileSearch, HeartHandshake } from "lucide-react";
 
 type MultidisciplinaryStage = "triage" | "assessment" | "followup" | "completed";
 
@@ -32,22 +33,22 @@ export default function PsychologyDashboard() {
   const getStage = (s: Student): MultidisciplinaryStage => {
     const MULTI_CATEGORIES = ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"];
 
-    // 1. Fila de Triagem: intervenção multi sem responsável atribuído
-    const hasUnacceptedMulti = s.interventions.some(i =>
-      MULTI_CATEGORIES.includes(i.actionCategory) &&
-      !i.acceptedBy &&
-      i.status !== "Concluído"
-    );
-    if (hasUnacceptedMulti) return "triage";
-
-    // 2. Aguardando Ação: responsável atribuído mas sem avaliação psicológica ainda
-    //    (cobre tanto alunos com psychReferral quanto os encaminhados via multi-intervenção)
+    // 1. Aguardando Ação: responsável atribuído mas sem avaliação psicológica ainda
+    //    (verificar PRIMEIRO — se profissional já assumiu, sai da triagem mesmo que existam outras intervenções)
     const acceptedMultiInt = s.interventions.find(i =>
       MULTI_CATEGORIES.includes(i.actionCategory) &&
       i.acceptedBy &&
       i.status !== "Concluído"
     );
     if (acceptedMultiInt && s.psychAssessments.length === 0) return "assessment";
+
+    // 2. Fila de Triagem: intervenção multi sem responsável atribuído
+    const hasUnacceptedMulti = s.interventions.some(i =>
+      MULTI_CATEGORIES.includes(i.actionCategory) &&
+      !i.acceptedBy &&
+      i.status !== "Concluído"
+    );
+    if (hasUnacceptedMulti) return "triage";
 
     // 3. Fila de Triagem (legado): psychReferral sem intervenção multi e sem avaliações
     if (s.psychReferral && s.psychAssessments.length === 0) return "triage";
@@ -88,22 +89,16 @@ export default function PsychologyDashboard() {
   const followUpStudents = filtered.filter(s => getStage(s) === "followup");
   const completedStudents = filtered.filter(s => getStage(s) === "completed");
 
+  // Popup só para casos críticos ainda na Fila de Triagem (ninguém aceitou). Após aceite → vai para Aguardando Ação → popup não exibe mais para esse caso.
+  const firstCriticalReferral = referred.find(s => s.criticalAlert && getStage(s) === "triage");
   const [showCriticalAlert, setShowCriticalAlert] = useState(false);
-  const [activeAlert] = useState({
-    aluno: "Laura Barbosa",
-    turma: "1º Ano A",
-    coordenador: "Coordenação",
-    data: new Date().toLocaleDateString('pt-BR'),
-    sintomas: ["Mudança brusca de humor", "Isolamento severo social"],
-    observacaoCoord: "O aluno apresentou choro constante e isolamento durante o recreio. Solicito avaliação urgente dos sintomas observados."
-  });
-
+  const hasShownCriticalRef = useRef(false);
   useEffect(() => {
-    const timer = setTimeout(() => {
+    if (firstCriticalReferral && !hasShownCriticalRef.current) {
+      hasShownCriticalRef.current = true;
       setShowCriticalAlert(true);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, []);
+    }
+  }, [firstCriticalReferral?.id]);
 
   const getUrgentHighlight = (s: Student) => s.criticalAlert && getStage(s) !== "completed";
 
@@ -143,6 +138,23 @@ export default function PsychologyDashboard() {
           </div>
         )}
 
+        {/* Badges da jornada PEI: Aguardando PEI do professor | PEI elaborado */}
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {student.peiRecomendado && !student.pei && (
+            <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-800 border-amber-200 gap-1">
+              <ClipboardList className="w-3 h-3" /> Aguardando PEI do professor
+              {student.peiRecomendado.prazo && (
+                <span className="text-amber-600"> · Prazo: {formatBRDate(student.peiRecomendado.prazo)}</span>
+              )}
+            </Badge>
+          )}
+          {student.pei && (
+            <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-800 border-emerald-200 gap-1">
+              <FileCheck className="w-3 h-3" /> PEI elaborado — aguardando revisão
+            </Badge>
+          )}
+        </div>
+
         <div className="mt-3 space-y-2">
           {(activeInt?.objetivo || student.psychAssessments[student.psychAssessments.length - 1]?.queixaDescritiva) && (
             <div className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded p-1.5 line-clamp-2">
@@ -177,56 +189,64 @@ export default function PsychologyDashboard() {
           <p className="text-muted-foreground text-sm">Dashboard de Triagem e Acompanhamento</p>
         </div>
 
-        <Dialog open={showCriticalAlert} onOpenChange={setShowCriticalAlert}>
-          <DialogContent className="sm:max-w-[550px] border-red-500 shadow-red-900/20 shadow-2xl">
-            <DialogHeader>
-              <DialogTitle className="text-2xl text-red-700 flex items-center gap-3">
-                <ShieldAlert className="h-8 w-8 animate-pulse text-red-600" />
-                Encaminhamento Crítico
-              </DialogTitle>
-              <DialogDescription className="text-base text-red-950/70 font-medium pt-2">
-                A coordenação repassou um caso de urgência para a Equipe Multidisciplinar.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="bg-red-50/50 p-4 rounded-lg border border-red-100 my-2 space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-red-900/60 block font-medium">Aluno(a) em risco</span>
-                  <span className="font-bold text-slate-800 text-base">{activeAlert.aluno} <span className="text-xs font-normal text-slate-500">({activeAlert.turma})</span></span>
+        {firstCriticalReferral && (
+          <Dialog open={showCriticalAlert} onOpenChange={setShowCriticalAlert}>
+            <DialogContent className="sm:max-w-[550px] border-red-500 shadow-red-900/20 shadow-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-2xl text-red-700 flex items-center gap-3">
+                  <ShieldAlert className="h-8 w-8 animate-pulse text-red-600" />
+                  Encaminhamento Crítico
+                </DialogTitle>
+                <DialogDescription className="text-base text-red-950/70 font-medium pt-2">
+                  A coordenação repassou um caso de urgência para a Equipe Multidisciplinar.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="bg-red-50/50 p-4 rounded-lg border border-red-100 my-2 space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-red-900/60 block font-medium">Aluno(a) em risco</span>
+                    <span className="font-bold text-slate-800 text-base">
+                      {firstCriticalReferral.name}{" "}
+                      <span className="text-xs font-normal text-slate-500">({turmas?.find(t => t.id === firstCriticalReferral.turmaId)?.name ?? "—"})</span>
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-red-900/60 block font-medium">Solicitante</span>
+                    <span className="font-bold text-slate-800 text-base">Coordenação</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-red-900/60 block font-medium">Solicitante</span>
-                  <span className="font-bold text-slate-800 text-base">{activeAlert.coordenador}</span>
-                </div>
+                {(() => {
+                  const int = firstCriticalReferral.interventions.find(i =>
+                    ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory) && i.status !== "Concluído"
+                  );
+                  return int?.objetivo ? (
+                    <div>
+                      <span className="text-red-900/60 block font-medium mb-1">Contexto / Justificativa</span>
+                      <p className="text-sm text-slate-700 bg-white p-3 rounded-md border border-red-100 shadow-sm italic leading-relaxed">
+                        &quot;{int.objetivo}&quot;
+                      </p>
+                    </div>
+                  ) : null;
+                })()}
               </div>
-
-              <div>
-                <span className="text-red-900/60 block font-medium mb-1">Contexto / Justificativa</span>
-                <p className="text-sm text-slate-700 bg-white p-3 rounded-md border border-red-100 shadow-sm italic leading-relaxed">
-                  "{activeAlert.observacaoCoord}"
-                </p>
-              </div>
-            </div>
-
-            <DialogFooter className="sm:justify-between mt-2 flex-col sm:flex-row gap-3">
-              <Button variant="ghost" onClick={() => setShowCriticalAlert(false)} className="text-slate-500">
-                Fechar Alerta
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setShowCriticalAlert(false);
-                  navigate('/psicologia/aluno/s1');
-                }}
-                className="bg-red-600 hover:bg-red-700 font-bold gap-2"
-              >
-                Detalhes do Prontuário
-                <ArrowRight className="w-4 h-4 ml-1" />
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter className="sm:justify-between mt-2 flex-col sm:flex-row gap-3">
+                <Button variant="ghost" onClick={() => setShowCriticalAlert(false)} className="text-slate-500">
+                  Fechar Alerta
+                </Button>
+                <Button
+                  className="bg-red-600 hover:bg-red-700 font-bold gap-2"
+                  onClick={() => {
+                    setShowCriticalAlert(false);
+                    navigate(`/psicologia/aluno/${firstCriticalReferral.id}`);
+                  }}
+                >
+                  Detalhes do Prontuário
+                  <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* Filtros */}
         <div className="flex flex-col sm:flex-row gap-3 flex-wrap">

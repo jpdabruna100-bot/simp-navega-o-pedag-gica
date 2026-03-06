@@ -78,6 +78,39 @@ Do ponto de vista da **equipe multidisciplinar**, o aluno percorre três momento
 
 **Resumo:** Durante toda a jornada o card fica na coluna **Em Acompanhamento**. A diferença entre "Aguarda PEI" e "PEI elaborado" é apenas o **texto do badge** no card (e, na etapa 3, o evento na timeline). Não é necessário mover o aluno de coluna; a equipe acompanha o status pelo badge.
 
+### 3.4 Filtros do Painel da Equipe Multidisciplinar (referência: Coordenação)
+
+Tomando os **filtros da Coordenação** (`/coordenacao/intervencoes`) como referência, abaixo a proposta de filtros para o **Painel Multidisciplinar** (`/psicologia`), de forma alinhada, intuitiva e eficiente:
+
+| Filtro Coordenação | Equivalente / Proposta para Equipe Multidisciplinar | Lógica | Uso típico |
+|-------------------|------------------------------------------------------|--------|------------|
+| **Todos os Casos** | **Todos** | Mostra todos os alunos encaminhados (psychReferral ou intervenção multi). Já existe (dropdown "Todos" + risco). | Visão geral da fila. |
+| **Prioridade Alta** | **Prioridade Alta** | Alunos com `riskLevel === "high"` ou `criticalAlert === true`. Destaca os que exigem resposta mais rápida. | Triagem e SLA. |
+| **Ocorrências Críticas** | **Alerta Crítico** (opcional) | Alunos com `criticalAlert === true` (encaminhados via OC-1). Pode ser subconjunto de Prioridade Alta. | Casos vindos do dossiê crítico. |
+| **Equipe Multidisciplinar** | *(contexto invertido)* | Na coordenação filtra *casos da equipe*. Na psicologia, o painel já é da equipe; o filtro pode ser **Por responsável**: "Meus Casos" vs "Fila Geral" (já existe em "Meus Casos + Fila Geral"). | Ver só o que assumi vs. toda a fila. |
+| **Esfera Familiar** | **Esfera Familiar** (opcional) | Casos em que a intervenção ativa é "Acionar Família". Útil se a equipe acompanha alinhamento com a família. | Acompanhamento de contato familiar. |
+| **Somente Atrasados** | **Prazos em atraso** | Alunos com `peiRecomendado.prazo` vencido ou intervenção com `pendingUntil` vencido. "Preciso atuar agora." | Evitar esquecimento de prazos. |
+| **Apenas Concluídos** | **Apenas Concluídos** | Só coluna "Concluídos (Alta/Laudo)". Foco em histórico ou fechamento. | Revisão de altas, relatórios. |
+
+**Filtros específicos da jornada PEI (Equipe Multidisciplinar):**
+
+| Filtro | Descrição | Lógica | Uso típico |
+|--------|-----------|--------|------------|
+| **Aguardando PEI do professor** | Casos em que a equipe já recomendou PEI e o professor ainda não registrou. | `student.peiRecomendado` existe e `student.pei` vazio. | "O que está na mão do professor?" |
+| **PEI para revisar** | Professor já registrou o PEI; equipe deve revisar. | `student.pei` preenchido (e opcional: evento `pei_atualizado` recente ou não marcado como "revisado"). | "O que preciso revisar esta semana?" |
+
+**Resumo recomendado para a barra de filtros (Equipe Multidisciplinar):**
+
+1. **Todos** (padrão)  
+2. **Prioridade Alta**  
+3. **Aguardando PEI do professor**  
+4. **PEI para revisar**  
+5. **Prazos em atraso**  
+6. **Apenas Concluídos**  
+7. Manter **Buscar por nome**, **Turma** e **Meus Casos + Fila Geral** como já existem.
+
+Assim os filtros ficam **espelhados** à coordenação onde fizer sentido (prioridade, atrasos, concluídos) e **específicos** da jornada da equipe (aguardando PEI, PEI para revisar), com uso claro e eficiente.
+
 ---
 
 ## 4. Fluxo: Equipe Multidisciplinar conclui tarefa → Coordenador sinalizado
@@ -157,6 +190,7 @@ Do ponto de vista da **equipe multidisciplinar**, o aluno percorre três momento
 | 2 | Badge "PEI elaborado" (ou "Aguardando revisão") no card do aluno no Painel Multidisciplinar — aluno permanece na coluna atual | Alta |
 | 3 | Badge ou destaque em CoordStudentDetail para "Atividade recente da equipe" | Média |
 | 4 | Card "Atualizações da Equipe" no Dashboard da Coordenação (opcional) | Baixa |
+| 5 | Barra de filtros no Painel Multidisciplinar conforme § 3.4 (Prioridade Alta, Aguardando PEI, PEI para revisar, Prazos em atraso, Apenas Concluídos) | Média |
 
 ---
 

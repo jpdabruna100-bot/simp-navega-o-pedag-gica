@@ -16,7 +16,9 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { insertPsychAssessment, updateStudent, insertTimelineEvent, updateIntervention, insertIntervention, upsertFamilyContact } from "@/lib/supabase-mutations";
+import { insertPsychAssessment, updateStudent, insertTimelineEvent, updateIntervention, insertIntervention, upsertFamilyContact, updateCriticalOccurrence, insertInterventionUpdate } from "@/lib/supabase-mutations";
+import { useCriticalOccurrencesAll, QUERY_KEYS } from "@/hooks/useSupabaseData";
+import { useQueryClient } from "@tanstack/react-query";
 import { Clock, BookOpen, Brain, Phone, FileText, Upload, Eye, ShieldAlert, CheckCircle2, UserPlus, ArrowRight, ArrowLeft, MessageSquare, PhoneCall } from "lucide-react";
 
 const CONCEPT_RISK_COLOR: Record<string, string> = {
@@ -33,13 +35,20 @@ export default function PsychStudentDetail() {
   const { studentId } = useParams();
   const navigate = useNavigate();
   const { students, setStudents, turmas, refetchStudents } = useApp();
+  const queryClient = useQueryClient();
   const student = students.find((s) => s.id === studentId);
+  const { data: criticalOccurrences = [] } = useCriticalOccurrencesAll();
   const [showForm, setShowForm] = useState(false);
 
   const isCriticalCase = Boolean(student?.criticalAlert);
-  const [crisisResolved, setCrisisResolved] = useState(false);
-  const [crisisNote, setCrisisNote] = useState("");
-  const [crisisResolvedDate, setCrisisResolvedDate] = useState("");
+  const occurrenceEmTratativa = studentId ? criticalOccurrences.find(o => o.studentId === studentId && o.status === "Em Tratativa") : null;
+  const occurrenceResolvido = studentId ? criticalOccurrences.find(o => o.studentId === studentId && o.status === "Resolvido") : null;
+  const baixaEvent = student?.timeline.find(e => e.description.startsWith("Baixa de risco: "));
+  const hasCrisisResolvedInData = !!occurrenceResolvido || !!baixaEvent;
+
+  const [crisisResolved, setCrisisResolved] = useState(hasCrisisResolvedInData);
+  const [crisisNote, setCrisisNote] = useState(baixaEvent ? baixaEvent.description.replace(/^Baixa de risco: /, "") : "");
+  const [crisisResolvedDate, setCrisisResolvedDate] = useState(baixaEvent ? formatBRDate(baixaEvent.date) : "");
   const [crisisArchived, setCrisisArchived] = useState(false);
 
   // Busca na linha do tempo se o professor já enviou o feedback de retorno
@@ -178,6 +187,15 @@ export default function PsychStudentDetail() {
           description: "Tarefa de contato com a família criada (WhatsApp, Ligação, Notificação Agenda)",
         });
       }
+      const activeMulti = student!.interventions.find(i =>
+        ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory) && i.status !== "Concluído"
+      );
+      if (activeMulti) {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        const content = `Avaliação psicológica (${form.tipo}) realizada. Decisão da equipe: ${form.decisaoEquipe}${form.observacao?.trim() ? ". Observação: " + form.observacao.slice(0, 200) : ""}`;
+        insertInterventionUpdate(activeMulti.id, { date: today, time: timeStr, author: "Equipe Multidisciplinar", content }).catch((e) => console.warn("Intervention update falhou (não crítico):", e));
+      }
 
       await refetchStudents();
       toast({ title: "Avaliação psicopedagógica salva!" });
@@ -230,6 +248,19 @@ export default function PsychStudentDetail() {
           type: "family_contact",
           description: `Contato com família: ${canal} realizado`,
         });
+        const activeMulti = student!.interventions.find(i =>
+          ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory) && i.status !== "Concluído"
+        );
+        if (activeMulti) {
+          const now = new Date();
+          const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+          insertInterventionUpdate(activeMulti.id, {
+            date: today,
+            time: timeStr,
+            author: "Equipe Multidisciplinar",
+            content: `Contato com família: ${canal} realizado`,
+          }).catch((e) => console.warn("Intervention update falhou (não crítico):", e));
+        }
       }
       await refetchStudents();
     } catch (e) {
@@ -264,12 +295,20 @@ export default function PsychStudentDetail() {
         accepted_by: responsavel,
         status: "Aguardando",
       });
-      // Timeline é não-crítico: falha silenciosa para não bloquear o fluxo principal
+      const now = new Date();
+      const dateStr = now.toISOString().split("T")[0];
+      const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
       insertTimelineEvent(student!.id, {
-        date: new Date().toISOString().split("T")[0],
+        date: dateStr,
         type: "intervention",
         description: `Caso assumido por ${responsavel}`,
       }).catch((e) => console.warn("Timeline event falhou (não crítico):", e));
+      await insertInterventionUpdate(activeMultiInt.id, {
+        date: dateStr,
+        time: timeStr,
+        author: responsavel,
+        content: `Caso assumido por ${responsavel}`,
+      });
       await refetchStudents();
       toast({ title: "Caso Assumido", description: `O caso foi atribuído à ${responsavel}` });
     } catch (e) {
@@ -683,8 +722,8 @@ export default function PsychStudentDetail() {
           </div>
         )}
 
-        {/* MÓDULO DE GESTÃO DE RISCO (CRÍTICO) */}
-        {!isInTriage && isCriticalCase && !crisisArchived && (
+        {/* MÓDULO DE GESTÃO DE RISCO (CRÍTICO) — exibe se há alerta ativo ou se a crise já foi mitigada (para mostrar "Risco Mitigado") */}
+        {!isInTriage && (isCriticalCase || hasCrisisResolvedInData) && !crisisArchived && (
           <Card className={`border-red-500 transition-opacity duration-500 ${crisisResolved ? 'opacity-70 border-emerald-500' : 'shadow-red-900/10 shadow-lg'}`}>
             <CardHeader className={`${crisisResolved ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'} border-b pb-4`}>
               <CardTitle className={`${crisisResolved ? 'text-emerald-800' : 'text-red-700'} flex items-center justify-between text-lg`}>
@@ -725,14 +764,45 @@ export default function PsychStudentDetail() {
                     <Button variant="outline" className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800">
                       Encaminhar p/ Rede Hospitalar
                     </Button>
-                    <Button className="bg-red-600 hover:bg-red-700 text-white font-bold" onClick={() => {
+                    <Button className="bg-red-600 hover:bg-red-700 text-white font-bold" onClick={async () => {
                       if (crisisNote.trim() === "") {
                         toast({ title: "Atenção", description: "Registre a conduta antes de baixar o risco.", variant: "destructive" });
                         return;
                       }
-                      setCrisisResolved(true);
-                      setCrisisResolvedDate(new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }));
-                      toast({ title: "Crise Mitigada", description: "O Risco foi baixado e o Coordenador foi notificado da estabilização.", className: "bg-emerald-600 text-white" });
+                      if (!student) return;
+                      const now = new Date();
+                      const dateStr = now.toISOString().split("T")[0];
+                      const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+                      try {
+                        await updateStudent(student.id, { critical_alert: false });
+                        if (occurrenceEmTratativa) {
+                          await updateCriticalOccurrence(occurrenceEmTratativa.id, {
+                            status: "Resolvido",
+                            resolved_at: now.toISOString(),
+                          });
+                        }
+                        await insertTimelineEvent(student.id, {
+                          date: dateStr,
+                          type: "intervention",
+                          description: `Baixa de risco: ${crisisNote.trim()}`,
+                        });
+                        if (activeMultiInt) {
+                          await insertInterventionUpdate(activeMultiInt.id, {
+                            date: dateStr,
+                            time: timeStr,
+                            author: activeMultiInt.acceptedBy || "Equipe Multidisciplinar",
+                            content: `Baixa de risco: ${crisisNote.trim()}`,
+                          });
+                        }
+                        await refetchStudents();
+                        queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.criticalOccurrences, "all"] });
+                        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.criticalOccurrences });
+                        setCrisisResolved(true);
+                        setCrisisResolvedDate(`${formatBRDate(dateStr)} ${timeStr}`);
+                        toast({ title: "Crise Mitigada", description: "O Risco foi baixado e o Coordenador foi notificado da estabilização.", className: "bg-emerald-600 text-white" });
+                      } catch (e) {
+                        toast({ title: "Erro ao registrar baixa de risco", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+                      }
                     }}>
                       Registrar Contenção e Baixar Risco
                     </Button>

@@ -4,54 +4,30 @@ import Layout from "@/components/Layout";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Activity, Brain, Users, ArrowRight, ShieldAlert, TrendingUp } from "lucide-react";
+import { AlertTriangle, Activity, Brain, Users, ArrowRight, ShieldAlert, TrendingUp, ClipboardList } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList, Legend } from "recharts";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { useState, useEffect, useRef } from "react";
+import { useState, useMemo } from "react";
 
 export default function CoordinationDashboard() {
   const { students, turmas, isLoading } = useApp();
   const { data: criticalOccurrences = [] } = useCriticalOccurrences();
   const navigate = useNavigate();
 
-  const [showCriticalAlert, setShowCriticalAlert] = useState(false);
-  const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<string>>(new Set());
-  const hasAutoShownRef = useRef(false);
-
-  const activeOccurrences = criticalOccurrences.filter((o) => !dismissedAlertIds.has(o.id));
-  const firstActive = activeOccurrences[0];
-
-  useEffect(() => {
-    if (activeOccurrences.length > 0 && !hasAutoShownRef.current) {
-      hasAutoShownRef.current = true;
-      setShowCriticalAlert(true);
-    }
-  }, [activeOccurrences.length]);
-  const activeAlert = firstActive
-    ? (() => {
-        const s = students.find((st) => st.id === firstActive.studentId);
-        const turma = turmas?.find((t) => t?.id === s?.turmaId);
-        return {
-          id: firstActive.id,
-          aluno: s?.name ?? "Aluno",
-          turma: turma?.name ?? "—",
-          professor: firstActive.reportedBy ?? "Professor",
-          data: firstActive.reportedAt
-            ? new Date(firstActive.reportedAt).toLocaleDateString("pt-BR")
-            : new Date().toLocaleDateString("pt-BR"),
-          sintomas: firstActive.categories,
-          descricao: firstActive.description,
-        };
-      })()
-    : null;
-
   const highRisk = students.filter((s) => s.riskLevel === "high").length;
   const medRisk = students.filter((s) => s.riskLevel === "medium").length;
   const lowRisk = students.filter((s) => s.riskLevel === "low").length;
   const activeInterventions = students.flatMap((s) => s.interventions).filter((i) => i.status === "Em_Acompanhamento").length;
-  const overdueInterventions = 3; // Mock para demonstrar acompanhamentos atrasados/vencidos
+  const overdueInterventions = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return students.flatMap((s) => s.interventions).filter((i) => {
+      if (i.status !== "Em_Acompanhamento" || !i.pendingUntil) return false;
+      const pending = new Date(i.pendingUntil);
+      pending.setHours(0, 0, 0, 0);
+      return pending < today;
+    }).length;
+  }, [students]);
   const pendingPsych = students.flatMap((s) => s.interventions).filter((i) => i.actionCategory === "Acionar Psicologia" && i.status !== "Concluído").length;
 
   const areaData = [
@@ -66,6 +42,23 @@ export default function CoordinationDashboard() {
     { name: "Médio risco", value: medRisk, color: "#f59e0b" }, // amber-500
     { name: "Alto risco", value: highRisk, color: "#ef4444" }, // red-500
   ];
+
+  const studentsWithTeamActivity = useMemo(() => {
+    const today = new Date().toISOString().split("T")[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    const isRecent = (d: string) => d === today || d === yesterday;
+    const isTeamEvent = (e: { type: string; description?: string }) =>
+      e.type === "psych" ||
+      e.type === "pei_atualizado" ||
+      (e.type === "intervention" && (e.description?.includes("assumido") || e.description?.includes("concluído")));
+    return students
+      .filter((s) => s.timeline?.some((e) => isRecent(e.date) && isTeamEvent(e)))
+      .map((s) => {
+        const lastEvent = s.timeline?.find((e) => isRecent(e.date) && isTeamEvent(e));
+        return { student: s, lastEvent };
+      })
+      .sort((a, b) => (b.lastEvent?.date ?? "").localeCompare(a.lastEvent?.date ?? ""));
+  }, [students]);
 
   if (isLoading) {
     return (
@@ -103,80 +96,6 @@ export default function CoordinationDashboard() {
             Total: {students.length} estudantes
           </div>
         </div>
-
-        <Dialog open={showCriticalAlert && !!activeAlert} onOpenChange={setShowCriticalAlert}>
-          <DialogContent className="sm:max-w-[550px] border-red-500 shadow-red-900/20 shadow-2xl">
-            {activeAlert && (
-              <>
-                <DialogHeader>
-                  <DialogTitle className="text-2xl text-red-700 flex items-center gap-3">
-                    <ShieldAlert className="h-8 w-8 animate-pulse text-red-600" />
-                    Alerta Crítico Interceptado
-                  </DialogTitle>
-                  <DialogDescription className="text-base text-red-950/70 font-medium pt-2">
-                    O fluxo normal foi interrompido porque um professor reportou uma Ocorrência Urgente de risco iminente ou proteção à criança.
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="bg-red-50/50 p-4 rounded-lg border border-red-100 my-2 space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-red-900/60 block font-medium">Aluno(a) em risco</span>
-                      <span className="font-bold text-slate-800 text-base">{activeAlert.aluno} <span className="text-xs font-normal text-slate-500">({activeAlert.turma})</span></span>
-                    </div>
-                    <div>
-                      <span className="text-red-900/60 block font-medium">Reportado por</span>
-                      <span className="font-bold text-slate-800 text-base">{activeAlert.professor}</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="text-red-900/60 block font-medium mb-1">Fatores Sinalizados</span>
-                    <div className="flex flex-wrap gap-2">
-                      {activeAlert.sintomas.map((s) => (
-                        <span key={s} className="bg-red-100 text-red-800 text-xs px-2.5 py-1 rounded-md font-semibold border border-red-200">
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="text-red-900/60 block font-medium mb-1">Detalhamento do Professor</span>
-                    <p className="text-sm text-slate-700 bg-white p-3 rounded-md border border-red-100 shadow-sm italic leading-relaxed">
-                      &quot;{activeAlert.descricao}&quot;
-                    </p>
-                  </div>
-                </div>
-
-                <DialogFooter className="sm:justify-between mt-2 flex-col sm:flex-row gap-3">
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      if (activeAlert?.id) setDismissedAlertIds((prev) => new Set(prev).add(activeAlert.id));
-                      setShowCriticalAlert(false);
-                    }}
-                    className="text-slate-500"
-                  >
-                    Lerei depois
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => {
-                      if (activeAlert?.id) setDismissedAlertIds((prev) => new Set(prev).add(activeAlert.id));
-                      setShowCriticalAlert(false);
-                      navigate("/coordenacao/intervencoes?filtro=ocorrencias");
-                    }}
-                    className="bg-red-600 hover:bg-red-700 font-bold gap-2"
-                  >
-                    Assumir Caso e Tratar Agora
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </DialogFooter>
-              </>
-            )}
-          </DialogContent>
-        </Dialog>
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
 
@@ -381,6 +300,45 @@ export default function CoordinationDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Card Atualizações da Equipe (4.2 C) */}
+        <Card className="border border-amber-100 shadow-sm bg-amber-50/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ClipboardList className="h-5 w-5 text-amber-700" />
+              Atualizações da Equipe
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">Alunos com atividade recente da equipe multidisciplinar (últimas 24h)</p>
+          </CardHeader>
+          <CardContent>
+            {studentsWithTeamActivity.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4">Nenhuma atualização nas últimas 24h.</p>
+            ) : (
+              <ul className="space-y-2">
+                {studentsWithTeamActivity.slice(0, 8).map(({ student, lastEvent }) => (
+                  <li key={student.id}>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/coordenacao/aluno/${student.id}`)}
+                      className="w-full text-left flex items-center justify-between gap-2 py-2 px-3 rounded-md hover:bg-amber-100/80 transition-colors"
+                    >
+                      <span className="font-medium text-sm truncate">{student.name}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {lastEvent?.date ? new Date(lastEvent.date + "T12:00:00").toLocaleDateString("pt-BR") : ""}
+                      </span>
+                    </button>
+                    {lastEvent?.description && (
+                      <p className="text-xs text-muted-foreground pl-3 pb-1 truncate">{lastEvent.description}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {studentsWithTeamActivity.length > 8 && (
+              <p className="text-xs text-muted-foreground mt-2">+{studentsWithTeamActivity.length - 8} outros</p>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Bottom Action Card 1: Diretório de Alunos */}

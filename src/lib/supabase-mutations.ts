@@ -209,6 +209,16 @@ export async function insertCriticalOccurrence(studentId: string, data: {
   if (error) throw error;
 }
 
+export async function updateCriticalOccurrence(
+  occurrenceId: string,
+  data: { status: "Em Tratativa" | "Resolvido"; resolved_at?: string | null }
+): Promise<void> {
+  const payload: Record<string, unknown> = { status: data.status };
+  if (data.resolved_at !== undefined) payload.resolved_at = data.resolved_at;
+  const { error } = await supabase.from("critical_occurrences").update(payload).eq("id", occurrenceId);
+  if (error) throw error;
+}
+
 export async function insertStudentDocument(studentId: string, doc: {
   name: string; type: "pdf" | "image" | "doc"; date: string; responsavel: string; url: string; doc_category?: "laudo" | "pei" | "outro";
 }): Promise<void> {

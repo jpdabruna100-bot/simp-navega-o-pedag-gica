@@ -12,10 +12,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useApp } from "@/context/AppContext";
 import { useCriticalOccurrencesAll } from "@/hooks/useSupabaseData";
+import { insertIntervention, insertTimelineEvent, updateStudent } from "@/lib/supabase-mutations";
 
 export default function CriticalOccurrenceDetail() {
     const navigate = useNavigate();
-    const { students, turmas } = useApp();
+    const { students, turmas, refetchStudents } = useApp();
     const { data: criticalOccurrences = [], isLoading: loadingOccurrences } = useCriticalOccurrencesAll();
     const studentS1 = students.find((s) => s.id === "s1");
 
@@ -102,13 +103,48 @@ export default function CriticalOccurrenceDetail() {
         toast({ title: "Retorno Registrado", description: "O log da ocorrência foi atualizado." });
     };
 
-    const handlePsychAction = () => {
+    const handlePsychAction = async () => {
         if (psychNote.trim() === "") {
             toast({ title: "Campo Obrigatório", variant: "destructive", description: "Por favor, adicione uma nota explicando o motivo do encaminhamento." });
             return;
         }
+        if (!rawOccurrence || !student) {
+            toast({ title: "Erro", variant: "destructive", description: "Ocorrência ou aluno não encontrado." });
+            return;
+        }
 
+        const studentId = rawOccurrence.studentId;
+        const today = new Date().toISOString().split("T")[0];
         const timeNow = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const alreadyHasMulti = student.interventions.some(i =>
+            ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory) && i.status !== "Concluído"
+        );
+
+        try {
+            if (!alreadyHasMulti) {
+                await insertIntervention(studentId, {
+                    date: today,
+                    actionCategory: "Equipe Multidisciplinar",
+                    actionTool: "Pendente de Avaliação Clínica/Triagem",
+                    objetivo: psychNote.trim(),
+                    responsavel: "Coordenação",
+                    status: "Em_Acompanhamento",
+                    pendingUntil: undefined,
+                    acceptedBy: undefined,
+                });
+            }
+            await updateStudent(studentId, { critical_alert: true });
+            await insertTimelineEvent(studentId, {
+                date: today,
+                type: "intervention",
+                description: `Encaminhamento crítico para Equipe Multidisciplinar. ${psychNote.trim()}`,
+            });
+            await refetchStudents();
+        } catch (e) {
+            toast({ title: "Erro ao encaminhar", variant: "destructive", description: e instanceof Error ? e.message : String(e) });
+            return;
+        }
+
         setLogs(prev => [...prev, {
             id: Date.now(),
             time: timeNow,
@@ -118,7 +154,7 @@ export default function CriticalOccurrenceDetail() {
         setActiveTasks(prev => [...prev, "Aguardando Aceite da Psicóloga"]);
         setIsPsychModalOpen(false);
         setPsychNote("");
-        toast({ title: "Psicologia Acionada", description: "O caso foi enviado para a fila hospitalar/crise." });
+        toast({ title: "Psicologia Acionada", description: "O caso foi enviado para a fila de triagem da equipe multidisciplinar." });
     };
 
     const handleResolve = () => {
