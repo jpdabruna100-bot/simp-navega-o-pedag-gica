@@ -2,7 +2,6 @@ import { useApp } from "@/context/AppContext";
 import { useState, useMemo } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { useCriticalOccurrencesAll } from "@/hooks/useSupabaseData";
-import type { CriticalOccurrence } from "@/lib/supabase-queries";
 import Layout from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,11 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ContingencyPlanModal } from "@/components/ContingencyPlanModal";
 import { toast } from "@/hooks/use-toast";
-import { Clock, NotebookPen, FileText, CheckCircle2, Eye, ClipboardList, AlertCircle, ShieldAlert } from "lucide-react";
+import { Clock, NotebookPen, FileText, CheckCircle2, Eye, ClipboardList, AlertCircle, ShieldAlert, Search } from "lucide-react";
 import { InterventionDetailView } from "@/components/InterventionDetailView";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { formatBRDate } from "@/lib/utils";
-import { updateIntervention, insertInterventionUpdate } from "@/lib/supabase-mutations";
+import { updateIntervention, insertInterventionUpdate, insertTimelineEvent } from "@/lib/supabase-mutations";
 
 const isOverdue = (dateStr?: string) => {
     if (!dateStr) return false;
@@ -39,15 +39,29 @@ export default function InterventionManagement() {
     const [ataFinalText, setAtaFinalText] = useState("");
 
     const filtroNavegacao = searchParams.get("filtro");
+    const [filtroNome, setFiltroNome] = useState("");
 
     const allInterventions = useMemo(() => {
-        let interventions = students.flatMap(s => s.interventions.map(i => ({
-            ...i,
-            studentName: s.name,
-            studentId: s.id,
-            isPsychReferral: !!s.psychReferral,
-            riskLevel: s.riskLevel
-        })));
+        let interventions = students.flatMap(s => {
+            const firstOcc = criticalOccurrences.find(o => o.studentId === s.id && o.status === "Em Tratativa");
+            return s.interventions.map(i => ({
+                ...i,
+                studentName: s.name,
+                studentId: s.id,
+                isPsychReferral: !!s.psychReferral,
+                riskLevel: s.riskLevel,
+                hasCriticalOccurrence: !!firstOcc,
+                firstOccurrenceId: firstOcc?.id,
+                occurrenceDescription: firstOcc?.description,
+                occurrenceCategories: firstOcc?.categories ?? [],
+            }));
+        });
+
+        // Filtro por nome
+        if (filtroNome.trim()) {
+            const q = filtroNome.trim().toLowerCase();
+            interventions = interventions.filter(i => i.studentName.toLowerCase().includes(q));
+        }
 
         // Aplica o filtro vindo da URL (Cards da Dashboard) ou da Barra
         if (filtroNavegacao === "psicologia") {
@@ -60,16 +74,16 @@ export default function InterventionManagement() {
             interventions = interventions.filter(i => isOverdue(i.pendingUntil) && i.status === "Em_Acompanhamento");
         } else if (filtroNavegacao === "familia") {
             interventions = interventions.filter(i => i.actionCategory === "Acionar Família" && i.status !== "Aguardando");
+        } else if (filtroNavegacao === "interna") {
+            interventions = interventions.filter(i =>
+                (i.actionCategory === "Ações Internas" || i.actionCategory === "Equipe Multidisciplinar") && i.status !== "Aguardando"
+            );
+        } else if (filtroNavegacao === "ocorrencias") {
+            interventions = interventions.filter(i => i.hasCriticalOccurrence);
         }
 
         return interventions;
-    }, [students, filtroNavegacao]);
-
-    // Ocorrências Críticas (quando filtro=ocorrencias)
-    const occurrenceStages = useMemo(() => ({
-        emTratativa: criticalOccurrences.filter((o) => o.status === "Em Tratativa"),
-        resolvido: criticalOccurrences.filter((o) => o.status === "Resolvido"),
-    }), [criticalOccurrences]);
+    }, [students, filtroNavegacao, filtroNome, criticalOccurrences]);
 
     const getStudentName = (studentId: string) => students.find((s) => s.id === studentId)?.name ?? "Aluno";
     const getTurmaName = (studentId: string) => {
@@ -116,10 +130,20 @@ export default function InterventionManagement() {
         }
 
         try {
+            const intv = allInterventions.find(i => i.id === selectedInterventionId);
             await updateIntervention(selectedInterventionId, {
                 status: "Concluído",
                 resolution_ata: ataFinalText,
             });
+            if (intv?.studentId) {
+                const d = new Date();
+                const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                await insertTimelineEvent(intv.studentId, {
+                    date: dateStr,
+                    type: "intervention",
+                    description: `Ciclo encerrado pela coordenação: ${ataFinalText.slice(0, 100)}${ataFinalText.length > 100 ? "…" : ""}`,
+                });
+            }
             await refetchStudents();
             toast({ title: "Ciclo encerrado com sucesso", description: "O caso foi fechado.", duration: 3000 });
             setActiveModal("none");
@@ -163,54 +187,39 @@ export default function InterventionManagement() {
         }
     };
 
-    // Render Occurrence Card (para filtro=ocorrencias)
-    const OccurrenceCard = ({ occurrence }: { occurrence: CriticalOccurrence }) => (
-        <Card
-            className="mb-3 hover:shadow-md transition-all cursor-pointer border-rose-200 bg-rose-50/30"
-            onClick={() => navigate(`/coordenacao/ocorrencias/${occurrence.id}`)}
-        >
-            <CardContent className="p-4 flex flex-col gap-2">
-                <div className="flex justify-between items-start">
-                    <span className="font-semibold text-sm leading-tight text-rose-900">
-                        {getStudentName(occurrence.studentId)}
-                    </span>
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-rose-300 bg-rose-100 text-rose-800">
-                        {occurrence.status === "Em Tratativa" ? "Em Tratativa" : "Resolvido"}
-                    </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">{getTurmaName(occurrence.studentId)}</p>
-                <div className="flex flex-wrap gap-1 mt-1">
-                    {occurrence.categories.slice(0, 3).map((c) => (
-                        <span key={c} className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded">
-                            {c}
-                        </span>
-                    ))}
-                </div>
-                <p className="text-[11px] text-slate-600 line-clamp-2 mt-1">{occurrence.description}</p>
-                <p className="text-[10px] text-slate-500 mt-1">
-                    {occurrence.reportedBy ?? "Professor"} · {occurrence.reportedAt ? formatBRDate(occurrence.reportedAt.split("T")[0]) : "—"}
-                </p>
-                <Button size="sm" className="w-full text-xs h-7 mt-2 bg-rose-600 hover:bg-rose-700" variant="default"
-                    onClick={(e) => { e.stopPropagation(); navigate(`/coordenacao/ocorrencias/${occurrence.id}`); }}
-                >
-                    <ShieldAlert className="h-3 w-3 mr-1" /> Abrir Dossiê
-                </Button>
-            </CardContent>
-        </Card>
-    );
-
     // Render Kanban Card
     const KanbanCard = ({ intervention }: { intervention: typeof allInterventions[0] }) => (
-        <Card className="mb-3 hover:shadow-md transition-all">
+        <Card className={`mb-3 hover:shadow-md transition-all ${intervention.hasCriticalOccurrence ? "border-rose-200 bg-rose-50/30" : ""}`}>
             <CardContent className="p-4 flex flex-col gap-2">
                 <div className="flex justify-between items-start">
                     <Link to={`/coordenacao/aluno/${intervention.studentId}`} className="font-semibold text-sm leading-tight hover:underline hover:text-primary">
                         {intervention.studentName}
                     </Link>
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border ${isOverdue(intervention.pendingUntil) && intervention.status === "Em_Acompanhamento" ? "bg-red-50 text-red-600 border-red-200" : getStatusColor(intervention.status)}`}>
-                        {intervention.status === "Em_Acompanhamento" ? (isOverdue(intervention.pendingUntil) ? "Atrasado" : "Em Acomp.") : intervention.status}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1">
+                        {intervention.hasCriticalOccurrence && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-rose-300 bg-rose-100 text-rose-800">
+                                TRATATIVA CRÍTICA (HOJE)
+                            </Badge>
+                        )}
+                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border ${isOverdue(intervention.pendingUntil) && intervention.status === "Em_Acompanhamento" ? "bg-red-50 text-red-600 border-red-200" : getStatusColor(intervention.status)}`}>
+                            {intervention.status === "Em_Acompanhamento" ? (isOverdue(intervention.pendingUntil) ? "Atrasado" : "Em Acomp.") : intervention.status}
+                        </Badge>
+                    </div>
                 </div>
+
+                {intervention.hasCriticalOccurrence && (intervention.occurrenceDescription || (intervention.occurrenceCategories && intervention.occurrenceCategories.length > 0)) && (
+                    <div className="mt-1.5 border border-rose-200 rounded p-2 bg-rose-50/50">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-rose-700 mb-1">Motivo da distribuição</p>
+                        {intervention.occurrenceDescription && <p className="text-[11px] text-slate-600 line-clamp-2">{intervention.occurrenceDescription}</p>}
+                        {intervention.occurrenceCategories && intervention.occurrenceCategories.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                                {intervention.occurrenceCategories.slice(0, 3).map((c) => (
+                                    <span key={c} className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded">{c}</span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 <div className="text-xs text-muted-foreground mt-1">
                     {intervention.status === "Aguardando" && (
@@ -259,7 +268,14 @@ export default function InterventionManagement() {
                     </div>
                 )}
 
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-wrap gap-2">
+                    {intervention.hasCriticalOccurrence && intervention.firstOccurrenceId && (
+                        <Button size="sm" className="w-full text-xs h-7 bg-rose-600 hover:bg-rose-700" variant="default"
+                            onClick={(e) => { e.stopPropagation(); navigate(`/coordenacao/ocorrencias/${intervention.firstOccurrenceId}`); }}
+                        >
+                            <ShieldAlert className="h-3 w-3 mr-1" /> Abrir Dossiê
+                        </Button>
+                    )}
                     {intervention.status === "Aguardando" && (
                         <Button size="sm" className="w-full text-xs h-7" variant="outline"
                             onClick={() => handleOpenContingency(intervention.id)}
@@ -312,8 +328,17 @@ export default function InterventionManagement() {
 
                 {/* Barra de Filtros Rápida */}
                 <div className="flex flex-wrap items-center gap-2 mb-2 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                    <div className="relative flex-1 min-w-[140px] max-w-[200px]">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input
+                            placeholder="Buscar por nome..."
+                            value={filtroNome}
+                            onChange={(e) => setFiltroNome(e.target.value)}
+                            className="pl-8 h-8 text-sm"
+                        />
+                    </div>
                     <span className="text-sm font-medium text-slate-600 mr-2 flex items-center gap-1.5 hidden sm:flex">
-                        Filtrar visualização:
+                        Filtrar:
                     </span>
                     <Button
                         variant={!filtroNavegacao ? "default" : "outline"}
@@ -349,6 +374,14 @@ export default function InterventionManagement() {
                         Equipe Multidisciplinar
                     </Button>
                     <Button
+                        variant={filtroNavegacao === "interna" ? "default" : "outline"}
+                        size="sm"
+                        className={`h-8 rounded-full px-4 text-xs ${filtroNavegacao === "interna" ? "bg-violet-600 hover:bg-violet-700 text-white" : "text-slate-600 border-slate-200 bg-white"}`}
+                        onClick={() => setSearchParams({ filtro: "interna" })}
+                    >
+                        Ação Interna
+                    </Button>
+                    <Button
                         variant={filtroNavegacao === "familia" ? "default" : "outline"}
                         size="sm"
                         className={`h-8 rounded-full px-4 text-xs ${filtroNavegacao === "familia" ? "bg-amber-500 hover:bg-amber-600 text-white" : "text-slate-600 border-slate-200 bg-white"}`}
@@ -374,50 +407,16 @@ export default function InterventionManagement() {
                     </Button>
                 </div>
 
-                {/* Kanban Board ou Lista de Ocorrências Críticas */}
-                <div className="flex flex-col md:flex-row gap-6 overflow-x-auto pb-4">
-
-                    {filtroNavegacao === "ocorrencias" ? (
-                        <>
-                            {/* Modo Ocorrências: Em Tratativa */}
-                            <div className="bg-rose-50/50 rounded-xl p-4 border border-rose-200 flex flex-col min-h-[400px] h-[calc(100vh-180px)] min-w-[300px] flex-1">
-                                <div className="flex items-center justify-between mb-4 pb-2 border-b border-rose-200">
-                                    <h2 className="font-semibold text-rose-800 flex items-center gap-2">
-                                        <ShieldAlert className="h-4 w-4 text-rose-600" />
-                                        Em Tratativa
-                                    </h2>
-                                    <Badge variant="secondary" className="bg-rose-100 text-rose-800">{occurrenceStages.emTratativa.length}</Badge>
-                                </div>
-                                <div className="flex-1 overflow-y-auto pr-1">
-                                    {occurrenceStages.emTratativa.map((o) => <OccurrenceCard key={o.id} occurrence={o} />)}
-                                    {occurrenceStages.emTratativa.length === 0 && <p className="text-xs text-center text-muted-foreground py-10">Nenhuma ocorrência em tratativa.</p>}
-                                </div>
-                            </div>
-                            {/* Modo Ocorrências: Resolvidas */}
-                            <div className="bg-slate-50/50 rounded-xl p-4 border flex flex-col min-h-[400px] h-[calc(100vh-180px)] min-w-[300px] flex-1">
-                                <div className="flex items-center justify-between mb-4 pb-2 border-b">
-                                    <h2 className="font-semibold text-slate-700 flex items-center gap-2">
-                                        <div className="w-2.5 h-2.5 rounded-full bg-risk-low"></div>
-                                        Resolvidas
-                                    </h2>
-                                    <Badge variant="secondary">{occurrenceStages.resolvido.length}</Badge>
-                                </div>
-                                <div className="flex-1 overflow-y-auto pr-1">
-                                    {occurrenceStages.resolvido.map((o) => <OccurrenceCard key={o.id} occurrence={o} />)}
-                                    {occurrenceStages.resolvido.length === 0 && <p className="text-xs text-center text-muted-foreground py-10">Nenhuma ocorrência resolvida.</p>}
-                                </div>
-                            </div>
-                        </>
-                    ) : (
-                        <>
+                {/* Kanban Board (3 colunas: Aguardando | Em Acompanhamento | Concluídos) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 overflow-x-auto pb-4">
                     {/* Column 1: Aguardando Ação */}
-                    <div className="bg-slate-50/50 rounded-xl p-4 border flex flex-col min-h-[400px] h-[calc(100vh-180px)] min-w-[300px] flex-1">
-                        <div className="flex items-center justify-between mb-4 pb-2 border-b">
-                            <h2 className="font-semibold text-slate-700 flex items-center gap-2">
-                                <div className="w-2.5 h-2.5 rounded-full bg-risk-high"></div>
+                    <div className="bg-rose-50/30 rounded-xl p-4 border border-rose-200/50 flex flex-col min-h-[400px] h-[calc(100vh-180px)] min-w-[280px]">
+                        <div className="flex items-center justify-between mb-4 pb-2 border-b border-rose-200/50">
+                            <h2 className="font-semibold text-rose-800 flex items-center gap-2">
+                                <Clock className="h-4 w-4 text-rose-600" />
                                 Aguardando Ação
                             </h2>
-                            <Badge variant="secondary">{kanbanStages.agindo.length}</Badge>
+                            <Badge variant="secondary" className="bg-rose-100 text-rose-800">{kanbanStages.agindo.length}</Badge>
                         </div>
                         <div className="flex-1 overflow-y-auto pr-1">
                             {kanbanStages.agindo.map(i => <KanbanCard key={i.id} intervention={i} />)}
@@ -426,13 +425,13 @@ export default function InterventionManagement() {
                     </div>
 
                     {/* Column 2: Em Acompanhamento */}
-                    <div className="bg-slate-50/50 rounded-xl p-4 border flex flex-col min-h-[400px] h-[calc(100vh-180px)] min-w-[300px] flex-1">
-                        <div className="flex items-center justify-between mb-4 pb-2 border-b">
-                            <h2 className="font-semibold text-slate-700 flex items-center gap-2">
-                                <div className="w-2.5 h-2.5 rounded-full bg-risk-medium"></div>
+                    <div className="bg-amber-50/30 rounded-xl p-4 border border-amber-200/50 flex flex-col min-h-[400px] h-[calc(100vh-180px)] min-w-[280px]">
+                        <div className="flex items-center justify-between mb-4 pb-2 border-b border-amber-200/50">
+                            <h2 className="font-semibold text-amber-800 flex items-center gap-2">
+                                <ClipboardList className="h-4 w-4 text-amber-600" />
                                 Em Acompanhamento
                             </h2>
-                            <Badge variant="secondary">{kanbanStages.acompanhamento.length}</Badge>
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-800">{kanbanStages.acompanhamento.length}</Badge>
                         </div>
                         <div className="flex-1 overflow-y-auto pr-1">
                             {kanbanStages.acompanhamento.map(i => <KanbanCard key={i.id} intervention={i} />)}
@@ -440,10 +439,10 @@ export default function InterventionManagement() {
                     </div>
 
                     {/* Column 3: Concluído */}
-                    <div className="bg-slate-50/50 rounded-xl p-4 border flex flex-col min-h-[400px] h-[calc(100vh-180px)] min-w-[300px] flex-1">
-                        <div className="flex items-center justify-between mb-4 pb-2 border-b">
+                    <div className="bg-slate-50/50 rounded-xl p-4 border border-slate-200 flex flex-col min-h-[400px] h-[calc(100vh-180px)] min-w-[280px]">
+                        <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
                             <h2 className="font-semibold text-slate-700 flex items-center gap-2">
-                                <div className="w-2.5 h-2.5 rounded-full bg-risk-low"></div>
+                                <CheckCircle2 className="h-4 w-4 text-slate-600" />
                                 Concluídos (Recentes)
                             </h2>
                             <Badge variant="secondary">{kanbanStages.concluido.length}</Badge>
@@ -451,10 +450,7 @@ export default function InterventionManagement() {
                         <div className="flex-1 overflow-y-auto pr-1">
                             {kanbanStages.concluido.map(i => <KanbanCard key={i.id} intervention={i} />)}
                         </div>
-                    </div>
-                        </>
-                    )}
-
+                        </div>
                 </div>
             </div>
 
