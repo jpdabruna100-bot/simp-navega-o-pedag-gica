@@ -18,11 +18,14 @@ import { updateStudent, insertTimelineEvent, updatePsychAssessment, insertCritic
 import { addEmAndamento, removeEmAndamento } from "@/lib/professor-em-andamento";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
+import { QUERY_KEYS } from "@/hooks/useSupabaseData";
 
 export default function StudentDetail() {
   const { studentId } = useParams();
   const { students, setStudents, turmas, refetchStudents } = useApp();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertText, setAlertText] = useState("");
@@ -64,6 +67,7 @@ export default function StudentDetail() {
       });
       await updateStudent(student.id, { critical_alert: true });
       await refetchStudents();
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.criticalOccurrences });
       toast({
         title: "🚨 Alerta Crítico Enviado!",
         description: "A coordenação foi notificada imediatamente e o caso já consta na central deles.",

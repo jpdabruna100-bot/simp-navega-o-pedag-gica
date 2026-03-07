@@ -291,9 +291,9 @@ export default function PsychStudentDetail() {
   const handleAssumirCaso = async (responsavel: string) => {
     if (!activeMultiInt) return;
     try {
+      // Mantém o status atual (ex: Em_Acompanhamento) ao assumir; não voltar para Aguardando
       await updateIntervention(activeMultiInt.id, {
         accepted_by: responsavel,
-        status: "Aguardando",
       });
       const now = new Date();
       const dateStr = now.toISOString().split("T")[0];

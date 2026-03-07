@@ -1,18 +1,37 @@
 import { useApp } from "@/context/AppContext";
-import { useCriticalOccurrences } from "@/hooks/useSupabaseData";
+import { useCriticalOccurrences, useCriticalOccurrencesRealtime } from "@/hooks/useSupabaseData";
 import Layout from "@/components/Layout";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { RiskBadge } from "@/components/RiskBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, Activity, Brain, Users, ArrowRight, ShieldAlert, TrendingUp, ClipboardList } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList, Legend } from "recharts";
 import { Label } from "@/components/ui/label";
-import { useState, useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import { useState, useMemo, useEffect, useRef } from "react";
 
 export default function CoordinationDashboard() {
   const { students, turmas, isLoading } = useApp();
-  const { data: criticalOccurrences = [] } = useCriticalOccurrences();
+  const { data: criticalOccurrences = [], refetch: refetchOccurrences } = useCriticalOccurrences();
+  useCriticalOccurrencesRealtime();
   const navigate = useNavigate();
+  const [showCriticalAlert, setShowCriticalAlert] = useState(false);
+  const prevCountRef = useRef(0);
+
+  // Refetch ao abrir o dashboard para pegar alertas recém-criados
+  useEffect(() => {
+    refetchOccurrences();
+  }, [refetchOccurrences]);
+
+  // Popup quando há ocorrências críticas (novas ou ao abrir)
+  useEffect(() => {
+    const n = criticalOccurrences.length;
+    if (n > 0 && n > prevCountRef.current) {
+      prevCountRef.current = n;
+      setShowCriticalAlert(true);
+    }
+  }, [criticalOccurrences.length]);
 
   const highRisk = students.filter((s) => s.riskLevel === "high").length;
   const medRisk = students.filter((s) => s.riskLevel === "medium").length;
@@ -70,8 +89,70 @@ export default function CoordinationDashboard() {
     );
   }
 
+  const firstOccurrence = criticalOccurrences[0];
+  const firstStudent = firstOccurrence ? students.find((s) => s.id === firstOccurrence.studentId) : null;
+
   return (
     <Layout>
+      {/* Popup: Alerta crítico aguardando ação */}
+      {criticalOccurrences.length > 0 && (
+        <Dialog open={showCriticalAlert} onOpenChange={setShowCriticalAlert}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-2xl text-rose-700 flex items-center gap-3">
+                <ShieldAlert className="h-8 w-8 animate-pulse text-rose-600" />
+                Alerta Crítico Recebido
+              </DialogTitle>
+              <DialogDescription className="text-base text-rose-950/70 font-medium pt-2">
+                {criticalOccurrences.length === 1
+                  ? "Um professor registrou um alerta de proteção que requer ação imediata."
+                  : `${criticalOccurrences.length} alertas críticos aguardando ação da coordenação.`}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="bg-rose-50/50 p-4 rounded-lg border border-rose-100 my-2 space-y-4">
+              {firstStudent && firstOccurrence && (
+                <div className="grid gap-2 text-sm">
+                  <div>
+                    <span className="text-rose-900/60 block font-medium">Aluno(a)</span>
+                    <span className="font-bold text-slate-800 text-base">
+                      {firstStudent.name}{" "}
+                      <span className="text-xs font-normal text-slate-500">({turmas?.find((t) => t.id === firstStudent.turmaId)?.name ?? "—"})</span>
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-rose-900/60 block font-medium">Reportado por</span>
+                    <span className="font-bold text-slate-800">{firstOccurrence.reportedBy ?? "Professor"}</span>
+                  </div>
+                  {firstOccurrence.description && (
+                    <div>
+                      <span className="text-rose-900/60 block font-medium mb-1">Descrição</span>
+                      <p className="text-sm text-slate-700 bg-white p-3 rounded-md border border-rose-100 line-clamp-3">
+                        {firstOccurrence.description}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="ghost" onClick={() => setShowCriticalAlert(false)} className="text-slate-500">
+                Fechar
+              </Button>
+              <Button
+                className="bg-rose-600 hover:bg-rose-700 font-bold gap-2"
+                onClick={() => {
+                  setShowCriticalAlert(false);
+                  navigate("/coordenacao/intervencoes?filtro=ocorrencias");
+                }}
+              >
+                Ver na Fila de Aguardando Ação
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <div className="space-y-6">
         <div className="flex flex-col mb-2">
           <h1 className="text-2xl font-bold">Dashboard Estratégico</h1>

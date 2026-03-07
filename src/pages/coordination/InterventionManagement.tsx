@@ -1,12 +1,12 @@
 import { useApp } from "@/context/AppContext";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
-import { useCriticalOccurrencesAll } from "@/hooks/useSupabaseData";
+import { useCriticalOccurrencesAll, useCriticalOccurrencesRealtime } from "@/hooks/useSupabaseData";
+import type { CriticalOccurrence } from "@/lib/supabase-queries";
 import Layout from "@/components/Layout";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ContingencyPlanModal } from "@/components/ContingencyPlanModal";
 import { toast } from "@/hooks/use-toast";
 import { Clock, NotebookPen, FileText, CheckCircle2, Eye, ClipboardList, AlertCircle, ShieldAlert, Search } from "lucide-react";
@@ -26,7 +26,8 @@ const isOverdue = (dateStr?: string) => {
 
 export default function InterventionManagement() {
     const { students, refetchStudents, turmas } = useApp();
-    const { data: criticalOccurrences = [] } = useCriticalOccurrencesAll();
+    const { data: criticalOccurrences = [], refetch: refetchOccurrences } = useCriticalOccurrencesAll();
+    useCriticalOccurrencesRealtime();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const preSelectedStudentId = searchParams.get("aluno");
@@ -39,6 +40,13 @@ export default function InterventionManagement() {
     const [ataFinalText, setAtaFinalText] = useState("");
 
     const filtroNavegacao = searchParams.get("filtro");
+    const [showCriticalAlert, setShowCriticalAlert] = useState(false);
+    const prevCountRef = useRef(0);
+
+    // Refetch ao abrir a página (alerta recém-criado pelo professor)
+    useEffect(() => {
+        refetchOccurrences();
+    }, [refetchOccurrences]);
     const [filtroNome, setFiltroNome] = useState("");
 
     const allInterventions = useMemo(() => {
@@ -71,7 +79,7 @@ export default function InterventionManagement() {
         } else if (filtroNavegacao === "concluidos") {
             interventions = interventions.filter(i => i.status === "Concluído");
         } else if (filtroNavegacao === "atrasados") {
-            interventions = interventions.filter(i => isOverdue(i.pendingUntil) && i.status === "Em_Acompanhamento");
+            interventions = interventions.filter(i => isOverdue(i.pendingUntil) && (i.status || "").replace(/\s+/g, "_") === "Em_Acompanhamento");
         } else if (filtroNavegacao === "familia") {
             interventions = interventions.filter(i => i.actionCategory === "Acionar Família" && i.status !== "Aguardando");
         } else if (filtroNavegacao === "interna") {
@@ -91,11 +99,43 @@ export default function InterventionManagement() {
         return turmas?.find((t) => t.id === s?.turmaId)?.name ?? "—";
     };
 
+    // Ocorrências críticas sem intervenção (professor criou alerta, coordenação ainda não acionou)
+    const occurrencesPendentes = useMemo(() => {
+        return criticalOccurrences.filter((o) => {
+            if (o.status !== "Em Tratativa") return false;
+            const hasMulti = students.some((s) =>
+                s.id === o.studentId &&
+                s.interventions.some((i) =>
+                    ["Equipe Multidisciplinar", "Acionar Psicologia", "Acionar Psicopedagogia"].includes(i.actionCategory) &&
+                    i.status !== "Concluído"
+                )
+            );
+            return !hasMulti;
+        });
+    }, [criticalOccurrences, students]);
+
+    const occurrencesSemIntervencao = (!filtroNavegacao || filtroNavegacao === "ocorrencias") ? occurrencesPendentes : [];
+
+    // Popup quando há ocorrências críticas sem direcionamento
+    useEffect(() => {
+        const n = occurrencesPendentes.length;
+        if (n > 0 && n > prevCountRef.current) {
+            prevCountRef.current = n;
+            setShowCriticalAlert(true);
+        }
+    }, [occurrencesPendentes.length]);
+
+    // Normaliza status (banco pode retornar variações)
+    const norm = (s: string) => (s || "").replace(/\s+/g, "_");
+    const isAguardando = (s: string) => norm(s) === "Aguardando";
+    const isEmAcompanhamento = (s: string) => norm(s) === "Em_Acompanhamento";
+    const isConcluido = (s: string) => norm(s) === "Concluído";
+
     // Kanban Columns Data
     const kanbanStages = {
-        agindo: allInterventions.filter(i => i.status === "Aguardando"),
-        acompanhamento: allInterventions.filter(i => i.status === "Em_Acompanhamento"),
-        concluido: allInterventions.filter(i => i.status === "Concluído"),
+        agindo: allInterventions.filter(i => isAguardando(i.status)),
+        acompanhamento: allInterventions.filter(i => isEmAcompanhamento(i.status)),
+        concluido: allInterventions.filter(i => isConcluido(i.status)),
     };
 
     const getStatusColor = (status: string) => {
@@ -187,10 +227,41 @@ export default function InterventionManagement() {
         }
     };
 
+    // Card para ocorrência crítica sem intervenção (alerta recém-criado pelo professor)
+    const OccurrenceCard = ({ occurrence }: { occurrence: CriticalOccurrence }) => (
+        <div
+            className="bg-white border border-red-300 ring-1 ring-red-100 rounded-xl p-4 shadow-sm cursor-pointer transition-all hover:shadow-md flex flex-col gap-2"
+            onClick={() => navigate(`/coordenacao/ocorrencias/${occurrence.id}`)}
+        >
+            <div className="flex justify-between items-start">
+                <div>
+                    <h3 className="font-semibold text-sm leading-tight text-red-900">{getStudentName(occurrence.studentId)}</h3>
+                    <p className="text-xs text-muted-foreground">{getTurmaName(occurrence.studentId)}</p>
+                </div>
+                <Badge className="bg-red-600 hover:bg-red-700 text-white text-[10px] uppercase gap-1 px-1.5 py-0.5 animate-pulse">
+                    <ShieldAlert className="w-3 h-3" /> Tratativa Crítica (Hoje)
+                </Badge>
+            </div>
+            <div className="flex flex-wrap gap-1">
+                {(occurrence.categories ?? []).slice(0, 3).map((c) => (
+                    <span key={c} className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded">{c}</span>
+                ))}
+            </div>
+            <p className="text-[11px] text-slate-600 line-clamp-2">{occurrence.description}</p>
+            <p className="text-[10px] text-slate-500">
+                {occurrence.reportedBy ?? "Professor"} · {occurrence.reportedAt ? formatBRDate(occurrence.reportedAt.split("T")[0]) : "—"}
+            </p>
+            <Button size="sm" className="w-full text-xs h-7 mt-1 bg-rose-600 hover:bg-rose-700" variant="default"
+                onClick={(e) => { e.stopPropagation(); navigate(`/coordenacao/ocorrencias/${occurrence.id}`); }}
+            >
+                <ShieldAlert className="h-3 w-3 mr-1" /> Abrir Dossiê
+            </Button>
+        </div>
+    );
+
     // Render Kanban Card
     const KanbanCard = ({ intervention }: { intervention: typeof allInterventions[0] }) => (
-        <Card className={`mb-3 hover:shadow-md transition-all ${intervention.hasCriticalOccurrence ? "border-rose-200 bg-rose-50/30" : ""}`}>
-            <CardContent className="p-4 flex flex-col gap-2">
+        <div className={`bg-white border rounded-xl p-4 shadow-sm transition-all hover:shadow-md flex flex-col gap-2 ${intervention.hasCriticalOccurrence ? "border-rose-300 ring-1 ring-rose-100 shadow-rose-100" : "border-slate-200"}`}>
                 <div className="flex justify-between items-start">
                     <Link to={`/coordenacao/aluno/${intervention.studentId}`} className="font-semibold text-sm leading-tight hover:underline hover:text-primary">
                         {intervention.studentName}
@@ -305,12 +376,73 @@ export default function InterventionManagement() {
                         </Button>
                     )}
                 </div>
-            </CardContent>
-        </Card>
+        </div>
     );
+
+    const firstPendente = occurrencesPendentes[0];
+    const firstStudentPendente = firstPendente ? students.find((s) => s.id === firstPendente.studentId) : null;
 
     return (
         <Layout>
+            {/* Popup: Alerta crítico sem direcionamento */}
+            {occurrencesPendentes.length > 0 && (
+                <Dialog open={showCriticalAlert} onOpenChange={setShowCriticalAlert}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl text-rose-700 flex items-center gap-3">
+                                <ShieldAlert className="h-8 w-8 animate-pulse text-rose-600" />
+                                Alerta Crítico Aguardando Ação
+                            </DialogTitle>
+                            <DialogDescription className="text-base text-rose-950/70 font-medium pt-2">
+                                {occurrencesPendentes.length === 1
+                                    ? "Um professor registrou um alerta de proteção que requer ação imediata."
+                                    : `${occurrencesPendentes.length} alertas críticos aguardando direcionamento da coordenação.`}
+                            </DialogDescription>
+                        </DialogHeader>
+                        {firstStudentPendente && firstPendente && (
+                            <div className="bg-rose-50/50 p-4 rounded-lg border border-rose-100 my-2 space-y-4">
+                                <div className="grid gap-2 text-sm">
+                                    <div>
+                                        <span className="text-rose-900/60 block font-medium">Aluno(a)</span>
+                                        <span className="font-bold text-slate-800 text-base">
+                                            {firstStudentPendente.name}{" "}
+                                            <span className="text-xs font-normal text-slate-500">({getTurmaName(firstPendente.studentId)})</span>
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-rose-900/60 block font-medium">Reportado por</span>
+                                        <span className="font-bold text-slate-800">{firstPendente.reportedBy ?? "Professor"}</span>
+                                    </div>
+                                    {firstPendente.description && (
+                                        <div>
+                                            <span className="text-rose-900/60 block font-medium mb-1">Descrição</span>
+                                            <p className="text-sm text-slate-700 bg-white p-3 rounded-md border border-rose-100 line-clamp-3">
+                                                {firstPendente.description}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        <div className="flex justify-end gap-2 mt-4">
+                            <Button variant="ghost" onClick={() => setShowCriticalAlert(false)} className="text-slate-500">
+                                Fechar
+                            </Button>
+                            <Button
+                                className="bg-rose-600 hover:bg-rose-700 font-bold gap-2"
+                                onClick={() => {
+                                    setShowCriticalAlert(false);
+                                    setSearchParams({ filtro: "ocorrencias" });
+                                }}
+                            >
+                                Ver na Coluna Aguardando Ação
+                                <ShieldAlert className="h-4 w-4 ml-1" />
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            )}
+
             <div className="space-y-6">
                 <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-4">
                     <div>
@@ -408,49 +540,62 @@ export default function InterventionManagement() {
                 </div>
 
                 {/* Kanban Board (3 colunas: Aguardando | Em Acompanhamento | Concluídos) */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 overflow-x-auto pb-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start pt-2">
                     {/* Column 1: Aguardando Ação */}
-                    <div className="bg-rose-50/30 rounded-xl p-4 border border-rose-200/50 flex flex-col min-h-[400px] h-[calc(100vh-180px)] min-w-[280px]">
-                        <div className="flex items-center justify-between mb-4 pb-2 border-b border-rose-200/50">
-                            <h2 className="font-semibold text-rose-800 flex items-center gap-2">
+                    <div className="flex flex-col gap-3 min-w-0">
+                        <div className="flex items-center justify-between bg-rose-50 border border-rose-200 p-2.5 rounded-lg">
+                            <div className="flex items-center gap-2">
                                 <Clock className="h-4 w-4 text-rose-600" />
-                                Aguardando Ação
-                            </h2>
-                            <Badge variant="secondary" className="bg-rose-100 text-rose-800">{kanbanStages.agindo.length}</Badge>
+                                <h2 className="font-semibold text-rose-900 text-sm">Aguardando Ação</h2>
+                            </div>
+                            <Badge variant="secondary" className="bg-rose-200/50 text-rose-800">
+                                {kanbanStages.agindo.length + occurrencesSemIntervencao.length}
+                            </Badge>
                         </div>
-                        <div className="flex-1 overflow-y-auto pr-1">
+                        <div className="flex flex-col gap-3">
+                            {occurrencesSemIntervencao.map((o) => (
+                                <OccurrenceCard key={o.id} occurrence={o} />
+                            ))}
                             {kanbanStages.agindo.map(i => <KanbanCard key={i.id} intervention={i} />)}
-                            {kanbanStages.agindo.length === 0 && <p className="text-xs text-center text-muted-foreground py-10">Tudo limpo por aqui.</p>}
+                            {kanbanStages.agindo.length === 0 && occurrencesSemIntervencao.length === 0 && (
+                                <div className="text-center p-4 border border-dashed rounded-xl text-slate-400 text-sm">Tudo limpo por aqui.</div>
+                            )}
                         </div>
                     </div>
 
                     {/* Column 2: Em Acompanhamento */}
-                    <div className="bg-amber-50/30 rounded-xl p-4 border border-amber-200/50 flex flex-col min-h-[400px] h-[calc(100vh-180px)] min-w-[280px]">
-                        <div className="flex items-center justify-between mb-4 pb-2 border-b border-amber-200/50">
-                            <h2 className="font-semibold text-amber-800 flex items-center gap-2">
+                    <div className="flex flex-col gap-3 min-w-0">
+                        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 p-2.5 rounded-lg">
+                            <div className="flex items-center gap-2">
                                 <ClipboardList className="h-4 w-4 text-amber-600" />
-                                Em Acompanhamento
-                            </h2>
-                            <Badge variant="secondary" className="bg-amber-100 text-amber-800">{kanbanStages.acompanhamento.length}</Badge>
+                                <h2 className="font-semibold text-amber-900 text-sm">Em Acompanhamento</h2>
+                            </div>
+                            <Badge variant="secondary" className="bg-amber-200/50 text-amber-800">{kanbanStages.acompanhamento.length}</Badge>
                         </div>
-                        <div className="flex-1 overflow-y-auto pr-1">
+                        <div className="flex flex-col gap-3">
                             {kanbanStages.acompanhamento.map(i => <KanbanCard key={i.id} intervention={i} />)}
+                            {kanbanStages.acompanhamento.length === 0 && (
+                                <div className="text-center p-4 border border-dashed rounded-xl text-slate-400 text-sm">Nenhum caso em acompanhamento.</div>
+                            )}
                         </div>
                     </div>
 
                     {/* Column 3: Concluído */}
-                    <div className="bg-slate-50/50 rounded-xl p-4 border border-slate-200 flex flex-col min-h-[400px] h-[calc(100vh-180px)] min-w-[280px]">
-                        <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
-                            <h2 className="font-semibold text-slate-700 flex items-center gap-2">
-                                <CheckCircle2 className="h-4 w-4 text-slate-600" />
-                                Concluídos (Recentes)
-                            </h2>
-                            <Badge variant="secondary">{kanbanStages.concluido.length}</Badge>
+                    <div className="flex flex-col gap-3 min-w-0 opacity-80 hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-between bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
+                            <div className="flex items-center gap-2">
+                                <CheckCircle2 className="h-4 w-4 text-slate-500" />
+                                <h2 className="font-semibold text-slate-700 text-sm">Concluídos (Recentes)</h2>
+                            </div>
+                            <Badge variant="secondary" className="bg-slate-200 text-slate-700">{kanbanStages.concluido.length}</Badge>
                         </div>
-                        <div className="flex-1 overflow-y-auto pr-1">
+                        <div className="flex flex-col gap-3">
                             {kanbanStages.concluido.map(i => <KanbanCard key={i.id} intervention={i} />)}
+                            {kanbanStages.concluido.length === 0 && (
+                                <div className="text-center p-4 border border-dashed rounded-xl text-slate-400 text-sm">Nenhum caso concluído recentemente.</div>
+                            )}
                         </div>
-                        </div>
+                    </div>
                 </div>
             </div>
 
